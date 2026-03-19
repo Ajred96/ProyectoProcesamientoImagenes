@@ -163,26 +163,61 @@ def convertir_etiquetas_a_binario(y_multiclase):
     return y_binario.astype(np.int32)
 
 
-def dividir_dataset(X, y, rutas, proporcion_entrenamiento=0.7, semilla=42):
-    np.random.seed(semilla)  # La semilla me hace que sea reproducible
-    indices = np.arange(len(y))
-    np.random.shuffle(indices)
+def dividir_dataset_estratificado(X, y_multiclase, rutas, proporcion_entrenamiento=0.7, semilla=42):
+    np.random.seed(semilla)
 
-    X = X[indices]
-    y = y[indices]
-    rutas = np.array(rutas)[indices]
+    indices_train = []
+    indices_test = []
 
-    n_train = int(len(y) * proporcion_entrenamiento)
+    for etiqueta in np.unique(y_multiclase):
+        indices_clase = np.where(y_multiclase == etiqueta)[0]
+        np.random.shuffle(indices_clase)
 
-    X_train = X[:n_train]
-    y_train = y[:n_train]
-    rutas_train = rutas[:n_train]
+        n_train_clase = int(len(indices_clase) * proporcion_entrenamiento)
 
-    X_test = X[n_train:]
-    y_test = y[n_train:]
-    rutas_test = rutas[n_train:]
+        # Evitar que una clase quede sin representación en train o test
+        if n_train_clase == 0:
+            n_train_clase = 1
+        if n_train_clase == len(indices_clase):
+            n_train_clase = len(indices_clase) - 1
+
+        indices_train.extend(indices_clase[:n_train_clase])
+        indices_test.extend(indices_clase[n_train_clase:])
+
+    indices_train = np.array(indices_train)
+    indices_test = np.array(indices_test)
+
+    # Mezclar nuevamente dentro de train y test
+    np.random.shuffle(indices_train)
+    np.random.shuffle(indices_test)
+
+    X_train = X[indices_train]
+    y_train = y_multiclase[indices_train]
+    rutas_train = np.array(rutas)[indices_train]
+
+    X_test = X[indices_test]
+    y_test = y_multiclase[indices_test]
+    rutas_test = np.array(rutas)[indices_test]
 
     return X_train, y_train, rutas_train, X_test, y_test, rutas_test
+
+
+def mostrar_resumen_division(y_train, y_test):
+    print("\n=== DIVISIÓN ESTRATIFICADA ===")
+
+    print("\nEntrenamiento:")
+    for etiqueta in sorted(MAPA_NOMBRES.keys()):
+        cantidad = np.sum(y_train == etiqueta)
+        print(f"{MAPA_NOMBRES[etiqueta]}: {cantidad}")
+
+    print("\nPrueba:")
+    for etiqueta in sorted(MAPA_NOMBRES.keys()):
+        cantidad = np.sum(y_test == etiqueta)
+        print(f"{MAPA_NOMBRES[etiqueta]}: {cantidad}")
+
+    print("\nTotales:")
+    print("Entrenamiento:", len(y_train))
+    print("Prueba:", len(y_test))
 
 
 if __name__ == "__main__":
@@ -193,3 +228,9 @@ if __name__ == "__main__":
     mostrar_resumen_dataset(X, y_multiclase)
     mostrar_resumen_binario(y_binario)
     mostrar_ejemplos_por_clase(rutas, y_multiclase)
+
+    X_train, y_train, rutas_train, X_test, y_test, rutas_test = dividir_dataset_estratificado(
+        X, y_multiclase, rutas
+    )
+
+    mostrar_resumen_division(y_train, y_test)
