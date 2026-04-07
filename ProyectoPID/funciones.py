@@ -276,3 +276,376 @@ def CalcularPorcentajeMascara(mascara):
 
 def SuavizarCanal(canal, metodo="gaussiano_3x3"):
     return aplicarConvolucion(canal, metodo)
+
+
+def DistanciaEuclidianaRGB(imagen, color):
+    imagenFloat = imagen.astype(np.float32)
+    color = np.array(color, dtype=np.float32).reshape(1, 1, 3)
+    diff = imagenFloat - color
+    return np.sqrt(np.sum(diff * diff, axis=2))
+
+
+def CalcularRangoRGB(imagen):
+    maximo = np.max(imagen, axis=2).astype(np.float32)
+    minimo = np.min(imagen, axis=2).astype(np.float32)
+    return maximo - minimo
+
+
+def BinarizarNoFondo(imagen, umbralBlanco=60, umbralNegro=45, umbralRango=18):
+    distBlanco = DistanciaEuclidianaRGB(imagen, (255, 255, 255))
+    distNegro = DistanciaEuclidianaRGB(imagen, (0, 0, 0))
+    rango = CalcularRangoRGB(imagen)
+
+    mascara = (
+            ((distBlanco > umbralBlanco) & (distNegro > umbralNegro))
+            | (rango > umbralRango)
+    )
+
+    return mascara.astype(np.uint8)
+
+
+def DilatarBinaria(mascara, tamKernel=3):
+    pad = tamKernel // 2
+    alto, ancho = mascara.shape
+    padded = np.pad(mascara, ((pad, pad), (pad, pad)), mode='constant')
+    salida = np.zeros_like(mascara, dtype=np.uint8)
+
+    for i in range(alto):
+        for j in range(ancho):
+            ventana = padded[i:i + tamKernel, j:j + tamKernel]
+            salida[i, j] = 1 if np.any(ventana == 1) else 0
+
+    return salida
+
+
+def ErosionarBinaria(mascara, tamKernel=3):
+    pad = tamKernel // 2
+    alto, ancho = mascara.shape
+    padded = np.pad(mascara, ((pad, pad), (pad, pad)), mode='constant')
+    salida = np.zeros_like(mascara, dtype=np.uint8)
+
+    for i in range(alto):
+        for j in range(ancho):
+            ventana = padded[i:i + tamKernel, j:j + tamKernel]
+            salida[i, j] = 1 if np.all(ventana == 1) else 0
+
+    return salida
+
+
+def CerrarBinaria(mascara, tamKernel=3):
+    return ErosionarBinaria(DilatarBinaria(mascara, tamKernel), tamKernel)
+
+
+def AbrirBinaria(mascara, tamKernel=3):
+    return DilatarBinaria(ErosionarBinaria(mascara, tamKernel), tamKernel)
+
+
+def EtiquetarComponentesConectados(mascara):
+    alto, ancho = mascara.shape
+    etiquetas = np.zeros((alto, ancho), dtype=np.int32)
+    etiquetaActual = 0
+    componentes = []
+
+    vecinos = [(-1, -1), (-1, 0), (-1, 1),
+               (0, -1), (0, 1),
+               (1, -1), (1, 0), (1, 1)]
+
+    for i in range(alto):
+        for j in range(ancho):
+            if mascara[i, j] == 1 and etiquetas[i, j] == 0:
+                etiquetaActual += 1
+                stack = [(i, j)]
+                etiquetas[i, j] = etiquetaActual
+
+                pixels = []
+                minFila, maxFila = i, i
+                minCol, maxCol = j, j
+
+                while stack:
+                    y, x = stack.pop()
+                    pixels.append((y, x))
+
+                    minFila = min(minFila, y)
+                    maxFila = max(maxFila, y)
+                    minCol = min(minCol, x)
+                    maxCol = max(maxCol, x)
+
+                    for dy, dx in vecinos:
+                        ny, nx = y + dy, x + dx
+                        if 0 <= ny < alto and 0 <= nx < ancho:
+                            if mascara[ny, nx] == 1 and etiquetas[ny, nx] == 0:
+                                etiquetas[ny, nx] = etiquetaActual
+                                stack.append((ny, nx))
+
+                componentes.append({
+                    "etiqueta": etiquetaActual,
+                    "area": len(pixels),
+                    "bbox": (minFila, minCol, maxFila, maxCol),
+                    "pixels": pixels
+                })
+
+    return etiquetas, componentes
+
+
+def FiltrarComponentesPequenos(mascara, areaMinima=300):
+    etiquetas, componentes = EtiquetarComponentesConectados(mascara)
+    salida = np.zeros_like(mascara, dtype=np.uint8)
+    componentesValidos = []
+
+    for comp in componentes:
+        if comp["area"] >= areaMinima:
+            componentesValidos.append(comp)
+            for y, x in comp["pixels"]:
+                salida[y, x] = 1
+
+    return salida, componentesValidos
+
+
+def SegmentarPapas(imagen):
+    mascara = BinarizarNoFondo(imagen)
+
+    mascara = AbrirBinaria(mascara, 3)
+    mascara = CerrarBinaria(mascara, 5)
+
+    mascara, componentes = FiltrarComponentesPequenos(mascara, 300)
+
+    return mascara, componentes
+
+
+def ObtenerMascaraComponente(comp, shape):
+    mascara = np.zeros(shape, dtype=np.uint8)
+    for y, x in comp["pixels"]:
+        mascara[y, x] = 1
+    return mascara
+
+
+def CalcularPromedioRGBEnMascara(imagen, mascara):
+    pixeles = imagen[mascara == 1]
+
+    if len(pixeles) == 0:
+        return np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+    return np.mean(pixeles.astype(np.float32), axis=0)
+
+
+def CalcularMapaOscuridadRelativa(imagen, mascaraPapa):
+    """
+    Mide qué tan más oscuro es cada píxel respecto al color promedio
+    de la papa segmentada.
+    """
+    promedioRGB = CalcularPromedioRGBEnMascara(imagen, mascaraPapa)
+
+    promedioGris = np.mean(promedioRGB)
+
+    imagenFloat = imagen.astype(np.float32)
+    grisPixel = np.mean(imagenFloat, axis=2)
+
+    mapaOscuridad = promedioGris - grisPixel
+
+    # Fuera de la papa no interesa
+    mapaOscuridad[mascaraPapa == 0] = 0
+
+    return mapaOscuridad
+
+
+def CalcularMapaRangoDentroPapa(imagen, mascaraPapa):
+    rango = CalcularRangoRGB(imagen)
+    rango[mascaraPapa == 0] = 0
+    return rango
+
+
+def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbralOscuridadSuave=20, umbralRango=18,
+                            umbralDifCanales=22, areaMinima=12):
+    """
+    Detecta lesiones usando dos reglas:
+    1) oscuridad fuerte
+    2) oscuridad moderada + diferencia entre canales alta
+
+    Esto ayuda a no perder costra comun y moho negro.
+    """
+
+    mapaOscuridad = CalcularMapaOscuridadRelativa(imagen, mascaraPapa)
+    mapaRango = CalcularMapaRangoDentroPapa(imagen, mascaraPapa)
+    mapaDifCanales = CalcularMapaDiferenciaCanales(imagen, mascaraPapa)
+
+    regla1 = (mapaOscuridad > umbralOscuridadFuerte)
+
+    regla2 = (
+            (mapaOscuridad > umbralOscuridadSuave) &
+            (mapaRango > umbralRango) &
+            (mapaDifCanales > umbralDifCanales)
+    )
+
+    mascaraLesion = (
+            (mascaraPapa == 1) &
+            (regla1 | regla2)
+    ).astype(np.uint8)
+
+    mascaraLesion = AbrirBinaria(mascaraLesion, 3)
+    mascaraLesion = CerrarBinaria(mascaraLesion, 5)
+
+    mascaraLesion, componentes = FiltrarComponentesPequenos(
+        mascaraLesion,
+        areaMinima=areaMinima
+    )
+
+    return mascaraLesion, componentes
+
+
+def DetectarLesionesEnImagen(imagen):
+    """
+    Pipeline:
+    1) segmentar papas
+    2) para cada papa buscar lesiones oscuras
+    3) unir componentes cercanos
+    """
+
+    mascaraPapas, componentesPapa = SegmentarPapas(imagen)
+
+    alto, ancho, _ = imagen.shape
+    mascaraLesionesTotal = np.zeros((alto, ancho), dtype=np.uint8)
+    componentesLesionTotales = []
+
+    for compPapa in componentesPapa:
+        mascaraPapaIndividual = ObtenerMascaraComponente(compPapa, (alto, ancho))
+
+        mascaraLesion, componentesLesion = DetectarLesionesOscuras(
+            imagen,
+            mascaraPapaIndividual,
+            umbralOscuridadFuerte=30,
+            umbralOscuridadSuave=18,
+            umbralRango=16,
+            umbralDifCanales=20,
+            areaMinima=10
+        )
+
+        mascaraLesionesTotal = np.maximum(mascaraLesionesTotal, mascaraLesion)
+
+        for compLesion in componentesLesion:
+            componentesLesionTotales.append(compLesion)
+
+    componentesLesionTotales = UnirComponentesCercanos(
+        componentesLesionTotales,
+        (alto, ancho),
+        margen=7,
+        areaMinimaFinal=35
+    )
+
+    return mascaraPapas, componentesPapa, mascaraLesionesTotal, componentesLesionTotales
+
+
+def ExpandirBoundingBox(bbox, margen, alto, ancho):
+    minFila, minCol, maxFila, maxCol = bbox
+
+    minFila = max(0, minFila - margen)
+    minCol = max(0, minCol - margen)
+    maxFila = min(alto - 1, maxFila + margen)
+    maxCol = min(ancho - 1, maxCol + margen)
+
+    return (minFila, minCol, maxFila, maxCol)
+
+
+def IntersectanBoxes(boxA, boxB):
+    a1, b1, a2, b2 = boxA
+    c1, d1, c2, d2 = boxB
+
+    if a2 < c1 or c2 < a1:
+        return False
+    if b2 < d1 or d2 < b1:
+        return False
+
+    return True
+
+
+def UnirDosBoxes(boxA, boxB):
+    a1, b1, a2, b2 = boxA
+    c1, d1, c2, d2 = boxB
+
+    return (
+        min(a1, c1),
+        min(b1, d1),
+        max(a2, c2),
+        max(b2, d2)
+    )
+
+
+def UnirComponentesCercanos(componentes, shape, margen=6, areaMinimaFinal=40):
+    """
+    Une componentes cuyas cajas, al expandirse un poco, se tocan.
+    Sirve para que una lesión grande no termine partida en 8 cajitas.
+    """
+    alto, ancho = shape
+    if len(componentes) == 0:
+        return []
+
+    cajas = []
+    for comp in componentes:
+        cajas.append({
+            "bbox": comp["bbox"],
+            "area": comp["area"]
+        })
+
+    cambio = True
+    while cambio:
+        cambio = False
+        nuevas = []
+        usados = [False] * len(cajas)
+
+        for i in range(len(cajas)):
+            if usados[i]:
+                continue
+
+            actual = cajas[i]["bbox"]
+            areaActual = cajas[i]["area"]
+            usados[i] = True
+
+            for j in range(i + 1, len(cajas)):
+                if usados[j]:
+                    continue
+
+                boxA = ExpandirBoundingBox(actual, margen, alto, ancho)
+                boxB = ExpandirBoundingBox(cajas[j]["bbox"], margen, alto, ancho)
+
+                if IntersectanBoxes(boxA, boxB):
+                    actual = UnirDosBoxes(actual, cajas[j]["bbox"])
+                    areaActual += cajas[j]["area"]
+                    usados[j] = True
+                    cambio = True
+
+            nuevas.append({
+                "bbox": actual,
+                "area": areaActual
+            })
+
+        cajas = nuevas
+
+    componentesFinales = []
+    for i, caja in enumerate(cajas):
+        if caja["area"] >= areaMinimaFinal:
+            componentesFinales.append({
+                "etiqueta": i + 1,
+                "area": caja["area"],
+                "bbox": caja["bbox"],
+                "pixels": []
+            })
+
+    return componentesFinales
+
+
+def CalcularMapaDiferenciaCanales(imagen, mascaraPapa):
+    """
+    Mide cuánta separación hay entre canales RGB.
+    Muchas lesiones oscuras no son gris puro, tienen variación entre canales.
+    """
+    imagenFloat = imagen.astype(np.float32)
+    canalR = imagenFloat[:, :, 0]
+    canalG = imagenFloat[:, :, 1]
+    canalB = imagenFloat[:, :, 2]
+
+    maximo = np.maximum(np.maximum(canalR, canalG), canalB)
+    minimo = np.minimum(np.minimum(canalR, canalG), canalB)
+
+    mapa = maximo - minimo
+    mapa[mascaraPapa == 0] = 0
+
+    return mapa
