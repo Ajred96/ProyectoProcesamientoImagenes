@@ -223,3 +223,56 @@ def ConvertirYuvARGB(imagenYuv):
     imagenRgb = (imagenRgb * 255).astype(np.uint8)
 
     return imagenRgb
+
+
+def ExtraerCanalesYUV(imagenRgb):
+    imagenYuv = ConvertirRgbAYuv(imagenRgb)
+    canalY = imagenYuv[:, :, 0]
+    canalU = imagenYuv[:, :, 1]
+    canalV = imagenYuv[:, :, 2]
+    return canalY, canalU, canalV
+
+
+def CalcularHistogramaGrises(canal):
+    if canal.dtype != np.uint8:
+        # Recorto valores fuera de rango 0-255, convirtiendo los menores en 0 y mayores en 255
+        # Y convierto la imagen a enteros sin signo de 8 bits (uint8), para asegurar valores entre 0-255
+        canal = np.clip(canal, 0, 255).astype(np.uint8)
+
+    # np.bincount() # Cuenta cuántas veces aparece cada número entero
+    # minlength=256 me asegura que el arreglo final tenga posiciones desde 0-255
+    histograma = np.bincount(canal.flatten(), minlength=256)
+    return histograma
+
+
+def AplicarOtsuACanal(canal):
+    # Recorto valores fuera de rango 0-255, convirtiendo los menores en 0 y mayores en 255
+    # Y convierto la imagen a enteros sin signo de 8 bits (uint8), para asegurar valores entre 0-255
+    canal255 = np.clip(canal * 255, 0, 255).astype(np.uint8)
+    histograma = CalcularHistogramaGrises(canal255)  # Calculo el histograma del canal Y
+    umbral = otsu(histograma)  # Calculo el umbral del histograma del canal Y
+    return umbral / 255.0  # Lo retorno normalizado entre 0-1
+
+
+def BinarizarCanal(canal, umbral, invertir=False):
+    # Genera una máscara binaria a partir de un canal de imagen comparándolo con un umbral.
+    # Si invertir=False: los valores >= umbral se consideran 1 (objeto) y el resto 0 (fondo).
+    # Si invertir=True: se invierte el criterio (valores < umbral son 1).
+    if invertir:
+        mascara = canal < umbral
+    else:
+        mascara = canal >= umbral
+
+    # Convierto la máscara booleana (True/False) a uint8 (1/0)
+    return mascara.astype(np.uint8)
+
+
+def CalcularPorcentajeMascara(mascara):
+    # Calcula qué proporción de la imagen pertenece al objeto (pixeles distintos de 0).
+    # np.sum(mascara > 0): cuenta los pixeles activos (valor 1)
+    # mascara.size: total de pixeles
+    return np.sum(mascara > 0) / mascara.size
+
+
+def SuavizarCanal(canal, metodo="gaussiano_3x3"):
+    return aplicarConvolucion(canal, metodo)
