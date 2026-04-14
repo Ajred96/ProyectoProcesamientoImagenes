@@ -1,8 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-from skimage.filters import threshold_otsu
-from skimage.morphology import closing, disk
+from functions import (
+    calculate_histogram,
+    calculate_otsu,
+    footprint_disk,
+    binary_closing,
+)
 
 path = "./dataset/Moho_negro/1.jpg"
 image = Image.open(path)
@@ -17,13 +21,15 @@ def black_scurf_mask(image, chroma_threshold=0.2, closing_radius=1):
         img_array, [0.298936021293775, 0.587043074451121, 0.114020904255103]
     )
 
+    hist, bin_edges, bin_centers = calculate_histogram(yuv)
+
     # 2. Calcular el Chroma (diferencia entre el máximo y el mínimo)
     max_rgb = img_array.max(axis=2)
     min_rgb = img_array.min(axis=2)
     chroma = max_rgb - min_rgb
 
     # 3. Calcular las máscaras
-    otsu = threshold_otsu(yuv)
+    otsu = calculate_otsu(hist, bin_centers, normalize=False)
     mask_dark = yuv < otsu  # Máscara relativa al umbral
 
     # Forzar saturación baja para detectar mejor las zonas oscuras
@@ -32,7 +38,7 @@ def black_scurf_mask(image, chroma_threshold=0.2, closing_radius=1):
     # Remover el fondo blanco
     mask_potato = yuv < 0.95
     detected_mask = mask_dark & mask_potato
-    clean_mask = closing(detected_mask, disk(closing_radius))
+    clean_mask = binary_closing(detected_mask, footprint_disk(closing_radius))
 
     overlay = img_array.copy()
     overlay[clean_mask] = [1, 0, 0]
