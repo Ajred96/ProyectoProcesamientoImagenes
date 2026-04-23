@@ -187,49 +187,52 @@ def aplicarConvolucion(imagen, metodo):
         raise ValueError("La imagen debe ser 2D o 3D")
 
 
+# Calculo la distribución acumulada del histograma y si recibo true en normalizar lo hago normalizarla.
 def calcularDistribucionAcumulada(histograma, normalizar=False):
-    if len(histograma) != 256:
+    # Esta función acumula las frecuencias del histograma
+    if len(histograma) != 256:  # Verifico que el histograma tenga exactamente 256 posiciones.
         raise ValueError("El histograma debe tener 256 posiciones")
 
-    distribucionAcumulada = np.cumsum(histograma)
+    distribucionAcumulada = np.cumsum(histograma)  # Calculo la suma acumulada de las frecuencias del histograma.
 
     if normalizar:
-        cdf_min = np.min(distribucionAcumulada)
-        cdf_max = np.max(distribucionAcumulada)
+        distribucionAcumuladaMinima = np.min(distribucionAcumulada)  # Valor mínimo de la distribución acumulada.
+        distribucionAcumuladaMaxima = np.max(distribucionAcumulada)  # Valor máximo de la distribución acumulada.
 
-        if cdf_max > cdf_min:
-            distribucionAcumulada = ((distribucionAcumulada - cdf_min) / (cdf_max - cdf_min)) * 255
+        if distribucionAcumuladaMaxima > distribucionAcumuladaMinima:  # Verifico si hay un rango válido para normalizar.
+            distribucionAcumulada = ((distribucionAcumulada - distribucionAcumuladaMinima) / (
+                    distribucionAcumuladaMaxima - distribucionAcumuladaMinima)) * 255  # Escalo la distribución acumulada al rango de intensidades 0-255.
         else:
-            distribucionAcumulada = np.zeros_like(distribucionAcumulada)
+            distribucionAcumulada = np.zeros_like(
+                distribucionAcumulada)  # Creo una distribución acumulada llena de ceros porque no se puede normalizar.
 
         distribucionAcumulada = np.round(distribucionAcumulada).astype(np.uint8)
 
     return distribucionAcumulada
 
 
-def ConvertirYuvARGB(imagenYuv):
-    Y = imagenYuv[:, :, 0]
-    U = imagenYuv[:, :, 1]
-    V = imagenYuv[:, :, 2]
+def ConvertirYuvARgb(imagenYuv):
+    canalLuminancia = imagenYuv[:, :, 0]  # Extraigo el canal de luminancia Y
+    canalCrominanciaAzul = imagenYuv[:, :, 1]  # Extraigo el canal de crominancia U
+    canalCrominanciaRoja = imagenYuv[:, :, 2]  # Extraigo el canal de crominancia V
 
-    R = Y + 1.14 * V
-    G = Y - 0.395 * U - 0.581 * V
-    B = Y + 2.032 * U
+    canalRojo = canalLuminancia + 1.14 * canalCrominanciaRoja  # Calculo el canal rojo a partir de Y y V.
+    canalVerde = canalLuminancia - 0.395 * canalCrominanciaAzul - 0.581 * canalCrominanciaRoja  # Calculo el canal verde a partir de Y, U y V.
+    canalAzul = canalLuminancia + 2.032 * canalCrominanciaAzul  # Calculo el canal azul a partir de Y y U.
 
-    imagenRgb = np.stack((R, G, B), axis=2)
+    imagenRgb = np.stack((canalRojo, canalVerde, canalAzul), axis=2)  # Uno los tres canales RGB en una sola imagen.
+    imagenRgb = np.clip(imagenRgb, 0, 1)  # Limito los valores al rango válido entre 0 y 1.
+    imagenRgb = (imagenRgb * 255).astype(np.uint8)  # Escalo la imagen al rango 0-255 y la convierto a uint8.
 
-    imagenRgb = np.clip(imagenRgb, 0, 1)
-
-    imagenRgb = (imagenRgb * 255).astype(np.uint8)
-
-    return imagenRgb
+    return imagenRgb  # Retorno la imagen convertida al espacio RGB.
 
 
 def ExtraerCanalesYUV(imagenRgb):
+    # Llamo la funcion ConvertirRgbAYuv y extraigo los canales YUV
     imagenYuv = ConvertirRgbAYuv(imagenRgb)
-    canalY = imagenYuv[:, :, 0]
-    canalU = imagenYuv[:, :, 1]
-    canalV = imagenYuv[:, :, 2]
+    canalY = imagenYuv[:, :, 0]  # Extraigo el canal Y de luminancia.
+    canalU = imagenYuv[:, :, 1]  # Extraigo el canal U de crominancia.
+    canalV = imagenYuv[:, :, 2]  # Extraigo el canal V de crominancia.
     return canalY, canalU, canalV
 
 
@@ -278,180 +281,393 @@ def SuavizarCanal(canal, metodo="gaussiano_3x3"):
     return aplicarConvolucion(canal, metodo)
 
 
-def DistanciaEuclidianaRGB(imagen, color):
-    imagenFloat = imagen.astype(np.float32)
-    color = np.array(color, dtype=np.float32).reshape(1, 1, 3)
-    diff = imagenFloat - color
-    return np.sqrt(np.sum(diff * diff, axis=2))
+def DistanciaEuclidianaRGB(imagen, colorRgb):
+    # Esta función convierte la imagen a flotante, organiza el color como vector compatible y calcula la distancia por píxel.
+    imagenEnFlotante = imagen.astype(np.float32)  # Convierto la imagen a flotante para operar con precisión.
+
+    # Convierto el color de referencia a un arreglo con forma compatible.
+    colorReferencia = (np.array(colorRgb, dtype=np.float32).reshape(1, 1, 3))
+
+    diferenciaPorCanal = imagenEnFlotante - colorReferencia  # Calculo la diferencia entre cada píxel y el color de referencia.
+
+    # Calculo la distancia euclidea que me dice que tanto difiere el pixel del color de referencia
+    distanciaEuclidiana = np.sqrt(np.sum(diferenciaPorCanal * diferenciaPorCanal, axis=2))
+
+    return distanciaEuclidiana  # Retorno la distancia calculada para cada píxel.
 
 
 def CalcularRangoRGB(imagen):
-    maximo = np.max(imagen, axis=2).astype(np.float32)
-    minimo = np.min(imagen, axis=2).astype(np.float32)
-    return maximo - minimo
+    # Aqui mido cuánta variación existe entre los canales de color en cada píxel.
+
+    # Obtengo el valor máximo entre R, G y B para cada píxel.
+    valorMaximoPorPixel = np.max(imagen, axis=2).astype(np.float32)
+
+    # Obtengo el valor mínimo entre R, G y B para cada píxel.
+    valorMinimoPorPixel = np.min(imagen, axis=2).astype(np.float32)
+
+    rangoPorPixel = valorMaximoPorPixel - valorMinimoPorPixel  # Calculo la diferencia entre el máximo y el mínimo por píxel.
+
+    return rangoPorPixel  # Asi se si son pixeles grises, saturado o con colores intensos
 
 
 def BinarizarNoFondo(imagen, umbralBlanco=60, umbralNegro=45, umbralRango=18):
-    distBlanco = DistanciaEuclidianaRGB(imagen, (255, 255, 255))
-    distNegro = DistanciaEuclidianaRGB(imagen, (0, 0, 0))
-    rango = CalcularRangoRGB(imagen)
+    # Esta función compara cada píxel con blanco y negro, y además evalúa la variación entre canales para detectar objeto.
 
-    mascara = (
-            ((distBlanco > umbralBlanco) & (distNegro > umbralNegro))
-            | (rango > umbralRango)
-    )
+    # Calculo la distancia de cada píxel al color blanco y negro
+    distanciaAlBlanco = DistanciaEuclidianaRGB(imagen, (255, 255, 255))
+    distanciaAlNegro = DistanciaEuclidianaRGB(imagen, (0, 0, 0))
 
-    return mascara.astype(np.uint8)
+    rangoDeCanales = CalcularRangoRGB(imagen)  # Calculo el rango entre canales RGB para cada píxel.
 
+    # Construyo la máscara que identifica los píxeles que no pertenecen al fondo.
+    # Primero valido y marco los píxeles alejados tanto del blanco como del negro.
+    mascaraNoFondo = (((distanciaAlBlanco > umbralBlanco) & (distanciaAlNegro > umbralNegro))
+                      | (rangoDeCanales > umbralRango))  # Luego lo hago píxeles con enough variación entre canales
 
-def DilatarBinaria(mascara, tamKernel=3):
-    pad = tamKernel // 2
-    alto, ancho = mascara.shape
-    padded = np.pad(mascara, ((pad, pad), (pad, pad)), mode='constant')
-    salida = np.zeros_like(mascara, dtype=np.uint8)
-
-    for i in range(alto):
-        for j in range(ancho):
-            ventana = padded[i:i + tamKernel, j:j + tamKernel]
-            salida[i, j] = 1 if np.any(ventana == 1) else 0
-
-    return salida
+    return mascaraNoFondo.astype(np.uint8)  # Convierto la máscara booleana a enteros 0 y 1.
 
 
-def ErosionarBinaria(mascara, tamKernel=3):
-    pad = tamKernel // 2
-    alto, ancho = mascara.shape
-    padded = np.pad(mascara, ((pad, pad), (pad, pad)), mode='constant')
-    salida = np.zeros_like(mascara, dtype=np.uint8)
+# Aplico una de las operaciones morfologicas que me explico el profesor (DILATACIÓN) que expande los píxeles blancos (activos = 1)
+# revisando si existe al menos un vecino blanco (activo = 1) dentro del kernel
+def DilatarBinaria(mascara, tamanoKernel=3):
+    mitadKernel = tamanoKernel // 2  # Calculo el centro del kernel para 3X3 = 1 para 5X5 = 2
+    altoMascara, anchoMascara = mascara.shape  # Obtengo el tamaño de la máscara original.
 
-    for i in range(alto):
-        for j in range(ancho):
-            ventana = padded[i:i + tamKernel, j:j + tamKernel]
-            salida[i, j] = 1 if np.all(ventana == 1) else 0
+    # Agrego bordes de ceros alrededor de la máscara.
+    mascaraConBorde = np.pad(mascara, ((mitadKernel, mitadKernel), (mitadKernel, mitadKernel)), mode='constant')
+    mascaraDilatada = np.zeros_like(mascara, dtype=np.uint8)  # Creo la máscara de salida inicializada en ceros.
 
-    return salida
+    for indiceFila in range(altoMascara):  # Recorro cada fila de la máscara original.
+        for indiceColumna in range(anchoMascara):  # Recorro cada columna de la máscara original.
+            ventanaLocal = mascaraConBorde[
+                indiceFila:indiceFila + tamanoKernel, indiceColumna:indiceColumna + tamanoKernel]  # Extraigo la ventana local centrada en el píxel actual.
+
+            # Activo el píxel si existe al menos un vecino activo en la ventana.
+            mascaraDilatada[indiceFila, indiceColumna] = 1 if np.any(ventanaLocal == 1) else 0
+
+    return mascaraDilatada  # Retorno la máscara dilatada.
 
 
-def CerrarBinaria(mascara, tamKernel=3):
-    return ErosionarBinaria(DilatarBinaria(mascara, tamKernel), tamKernel)
+# Aplico otra de las operaciones morfologicas que me explico el profesor (EROSIÓN) que mantiene los píxeles negros (activos = 1)
+# revisando si todos los vecino estan (activo = 1) dentro del kernel
+def ErosionarBinaria(mascara, tamanoKernel=3):
+    mitadKernel = tamanoKernel // 2  # Calculo el centro del kernel para 3X3 = 1 para 5X5 = 2
+    altoMascara, anchoMascara = mascara.shape  # Obtengo el tamaño de la máscara original.
+
+    # Agrego bordes de ceros alrededor de la máscara.
+    mascaraConBorde = np.pad(mascara, ((mitadKernel, mitadKernel), (mitadKernel, mitadKernel)), mode='constant')
+    mascaraErosionada = np.zeros_like(mascara, dtype=np.uint8)  # Creo la máscara de salida inicializada en ceros.
+
+    for indiceFila in range(altoMascara):  # Recorro cada fila de la máscara original.
+        for indiceColumna in range(anchoMascara):  # Recorro cada columna de la máscara original.
+            ventanaLocal = mascaraConBorde[
+                indiceFila:indiceFila + tamanoKernel, indiceColumna:indiceColumna + tamanoKernel]  # Extraigo la ventana local centrada en el píxel actual.
+
+            # Activo el píxel solo si toda la ventana está activa.
+            mascaraErosionada[indiceFila, indiceColumna] = 1 if np.all(ventanaLocal == 1) else 0
+
+    return mascaraErosionada  # Retorno la máscara erosionada.
 
 
-def AbrirBinaria(mascara, tamKernel=3):
-    return DilatarBinaria(ErosionarBinaria(mascara, tamKernel), tamKernel)
+# Esta función aplica el cierre de las operaciones morfológicas a una máscara binaria.
+def CerrarBinaria(mascara, tamanoKernel=3):
+    # Primero dilato y luego erosiono para cerrar huecos pequeños dentro del objeto.
+    return ErosionarBinaria(DilatarBinaria(mascara, tamanoKernel), tamanoKernel)
+
+
+# Wsta función aplica la apertura de las operaciones morfológicas a una máscara binaria.
+def AbrirBinaria(mascara, tamanoKernel=3):
+    # Primero erosiona y luego dilata para eliminar pequeños ruidos aislados.
+    return DilatarBinaria(ErosionarBinaria(mascara, tamanoKernel), tamanoKernel)
 
 
 def EtiquetarComponentesConectados(mascara):
-    alto, ancho = mascara.shape
-    etiquetas = np.zeros((alto, ancho), dtype=np.int32)
-    etiquetaActual = 0
-    componentes = []
+    # Aqui recorro la máscara, agrupo píxeles conectados en 8 direcciones y registro sus propiedades básicas
+    altoMascara, anchoMascara = mascara.shape  # Obtengo el tamaño de la máscara.
 
-    vecinos = [(-1, -1), (-1, 0), (-1, 1),
-               (0, -1), (0, 1),
-               (1, -1), (1, 0), (1, 1)]
+    # Creo la matriz donde guardaré la etiqueta de cada píxel.
+    matrizEtiquetas = np.zeros((altoMascara, anchoMascara), dtype=np.int32)
+    numeroEtiquetaActual = 0  # Inicializo el contador de etiquetas.
+    listaComponentes = []  # Creo la lista donde almacenaré la información de cada componente.
 
-    for i in range(alto):
-        for j in range(ancho):
-            if mascara[i, j] == 1 and etiquetas[i, j] == 0:
-                etiquetaActual += 1
-                stack = [(i, j)]
-                etiquetas[i, j] = etiquetaActual
+    desplazamientosVecinos = [  # Defino los desplazamientos para la conectividad de 8 vecinos.
+        (-1, -1), (-1, 0), (-1, 1),  # Agrego los vecinos de la fila superior.
+        (0, -1), (0, 1),  # Agrego los vecinos laterales.
+        (1, -1), (1, 0), (1, 1)  # Agrego los vecinos de la fila inferior.
+    ]  # Cierro la lista de vecinos.
 
-                pixels = []
-                minFila, maxFila = i, i
-                minCol, maxCol = j, j
+    for indiceFila in range(altoMascara):  # Recorro cada fila de la máscara.
+        for indiceColumna in range(anchoMascara):  # Recorro cada columna de la máscara.
 
-                while stack:
-                    y, x = stack.pop()
-                    pixels.append((y, x))
+            # Verifico si encontré un píxel activo aún no etiquetado.
+            if mascara[indiceFila, indiceColumna] == 1 and matrizEtiquetas[indiceFila, indiceColumna] == 0:
+                numeroEtiquetaActual += 1  # Incremento el número de etiqueta para un nuevo componente.
 
-                    minFila = min(minFila, y)
-                    maxFila = max(maxFila, y)
-                    minCol = min(minCol, x)
-                    maxCol = max(maxCol, x)
+                # Inicializo la pila de búsqueda con el píxel actual.
+                pilaPixelesPendientes = [(indiceFila, indiceColumna)]
 
-                    for dy, dx in vecinos:
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < alto and 0 <= nx < ancho:
-                            if mascara[ny, nx] == 1 and etiquetas[ny, nx] == 0:
-                                etiquetas[ny, nx] = etiquetaActual
-                                stack.append((ny, nx))
+                # Marco el píxel inicial con la etiqueta actual.
+                matrizEtiquetas[indiceFila, indiceColumna] = numeroEtiquetaActual
 
-                componentes.append({
-                    "etiqueta": etiquetaActual,
-                    "area": len(pixels),
-                    "bbox": (minFila, minCol, maxFila, maxCol),
-                    "pixels": pixels
-                })
+                pixelesDelComponente = []  # Creo la lista donde guardaré todos los píxeles del componente.
+                filaMinimaCaja = indiceFila  # Inicializo la fila mínima de la caja delimitadora.
+                filaMaximaCaja = indiceFila  # Inicializo la fila máxima de la caja delimitadora.
+                columnaMinimaCaja = indiceColumna  # Inicializo la columna mínima de la caja delimitadora.
+                columnaMaximaCaja = indiceColumna  # Inicializo la columna máxima de la caja delimitadora.
 
-    return etiquetas, componentes
+                while pilaPixelesPendientes:  # Continúo mientras existan píxeles pendientes por explorar.
+                    filaActual, columnaActual = pilaPixelesPendientes.pop()  # Extraigo el último píxel agregado a la pila.
+
+                    # Guardo el píxel dentro del componente actual.
+                    pixelesDelComponente.append((filaActual, columnaActual))
+
+                    # Actualizo la fila mínima y máximo de la caja delimitadora.
+                    filaMinimaCaja = min(filaMinimaCaja, filaActual)
+                    filaMaximaCaja = max(filaMaximaCaja, filaActual)
+
+                    # Actualizo la columna mínima y máxima de la caja delimitadora.
+                    columnaMinimaCaja = min(columnaMinimaCaja, columnaActual)
+                    columnaMaximaCaja = max(columnaMaximaCaja, columnaActual)
+
+                    for desplazamientoFila, desplazamientoColumna in desplazamientosVecinos:  # Recorro cada desplazamiento de vecino posible.
+                        filaVecina = filaActual + desplazamientoFila  # Calculo la fila del vecino.
+                        columnaVecina = columnaActual + desplazamientoColumna  # Calculo la columna del vecino.
+
+                        if 0 <= filaVecina < altoMascara and 0 <= columnaVecina < anchoMascara:  # Verifico que el vecino esté dentro de los límites de la imagen.
+                            if mascara[filaVecina, columnaVecina] == 1 and matrizEtiquetas[
+                                filaVecina, columnaVecina] == 0:  # Verifico si el vecino está activo y todavía no fue etiquetado.
+
+                                # Asigno al vecino la etiqueta del componente actual.
+                                matrizEtiquetas[filaVecina, columnaVecina] = numeroEtiquetaActual
+
+                                # Agrego el vecino a la pila para seguir expandiendo el componente.
+                                pilaPixelesPendientes.append((filaVecina, columnaVecina))
+
+                listaComponentes.append({"etiqueta": numeroEtiquetaActual,
+                                         "areaEnPixeles": len(pixelesDelComponente),
+                                         "cajaDelimitadora": (filaMinimaCaja, columnaMinimaCaja, filaMaximaCaja,
+                                                              columnaMaximaCaja),
+                                         "pixeles": pixelesDelComponente})  # Guardo la información resumida del componente detectado.
+
+    return matrizEtiquetas, listaComponentes
 
 
 def FiltrarComponentesPequenos(mascara, areaMinima=300):
-    etiquetas, componentes = EtiquetarComponentesConectados(mascara)
-    salida = np.zeros_like(mascara, dtype=np.uint8)
-    componentesValidos = []
+    # Aquí busco mantener solo los componentes suficientemente grandes y reconstruyo una nueva máscara con ellos.
 
-    for comp in componentes:
-        if comp["area"] >= areaMinima:
-            componentesValidos.append(comp)
-            for y, x in comp["pixels"]:
-                salida[y, x] = 1
+    # Primero etiqueto todos los componentes conectados de la máscara.
+    matrizEtiquetas, listaComponentes = EtiquetarComponentesConectados(mascara)
+    mascaraFiltrada = np.zeros_like(mascara, dtype=np.uint8)  # Creo la máscara de salida inicializada en ceros.
+    componentesValidos = []  # Creo la lista donde almacenaré solo los componentes que superen el filtro.
 
-    return salida, componentesValidos
+    for componenteActual in listaComponentes:  # Recorro cada componente detectado.
+        # Verifico si el área del componente es suficientemente grande.
+        if componenteActual["areaEnPixeles"] >= areaMinima:
+            componentesValidos.append(componenteActual)  # Guardo el componente dentro de la lista de válidos.
+
+            # Recorro todos los píxeles del componente válido.
+            for filaPixel, columnaPixel in componenteActual["pixeles"]:
+                # Activo en la máscara de salida cada píxel perteneciente al componente válido.
+                mascaraFiltrada[filaPixel, columnaPixel] = 1
+
+    return mascaraFiltrada, componentesValidos
 
 
 def SegmentarPapas(imagen):
-    mascara = BinarizarNoFondo(imagen)
+    # Separo las regiones que corresponden a las papas
+    mascaraPapas = BinarizarNoFondo(imagen)  # Genero una máscara inicial con las regiones que no son fondo.
+    mascaraPapas = AbrirBinaria(mascaraPapas, 3)  # Aplico apertura para eliminar pequeños ruidos.
+    mascaraPapas = CerrarBinaria(mascaraPapas, 5)  # Aplico cierre para rellenar huecos pequeños dentro de las papas.
+    mascaraPapas, componentesPapa = FiltrarComponentesPequenos(mascaraPapas,
+                                                               300)  # Conservo solo las componentes con tamaño suficiente.
 
-    mascara = AbrirBinaria(mascara, 3)
-    mascara = CerrarBinaria(mascara, 5)
-
-    mascara, componentes = FiltrarComponentesPequenos(mascara, 300)
-
-    return mascara, componentes
+    return mascaraPapas, componentesPapa
 
 
-def ObtenerMascaraComponente(comp, shape):
-    mascara = np.zeros(shape, dtype=np.uint8)
-    for y, x in comp["pixels"]:
-        mascara[y, x] = 1
-    return mascara
+def ObtenerMascaraComponente(componente, dimensionesMascara):
+    # Esta función toma la lista de píxeles del componente y genera una máscara del mismo tamaño que la imagen original.
+    mascaraComponente = np.zeros(dimensionesMascara, dtype=np.uint8)  # Creo una máscara vacía del tamaño solicitado.
+
+    for filaPixel, columnaPixel in componente["pixeles"]:  # Recorro cada píxel perteneciente al componente.
+        mascaraComponente[
+            filaPixel, columnaPixel] = 1  # Marco como activo el píxel correspondiente en la máscara del componente.
+
+    return mascaraComponente  # Retorno la máscara del componente individual.
 
 
 def CalcularPromedioRGBEnMascara(imagen, mascara):
-    pixeles = imagen[mascara == 1]
+    # Aquí selecciono los píxeles activos de la máscara y calcula el promedio por canal.
+    # Primero xtraigo todos los píxeles de la imagen donde la máscara está activa.
+    pixelesDentroDeLaMascara = imagen[mascara == 1]
 
-    if len(pixeles) == 0:
-        return np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    if len(pixelesDentroDeLaMascara) == 0:  # Verifico si no hay píxeles activos dentro de la máscara.
+        return np.array([0.0, 0.0, 0.0], dtype=np.float32)  # Retorno un vector negro si la máscara está vacía.
 
-    return np.mean(pixeles.astype(np.float32), axis=0)
+    # Calculo el promedio RGB de los píxeles seleccionados.
+    promedioPorCanal = np.mean(pixelesDentroDeLaMascara.astype(np.float32), axis=0)
+
+    return promedioPorCanal  # Retorno el color promedio calculado.
 
 
+# Mido la oscuridad relativa de cada píxel respecto al color promedio de la papa.
 def CalcularMapaOscuridadRelativa(imagen, mascaraPapa):
-    """
-    Mide qué tan más oscuro es cada píxel respecto al color promedio
-    de la papa segmentada.
-    """
-    promedioRGB = CalcularPromedioRGBEnMascara(imagen, mascaraPapa)
+    # Primer calculo el color promedio RGB de la papa segmentada.
+    promedioRgbPapa = CalcularPromedioRGBEnMascara(imagen, mascaraPapa)
 
-    promedioGris = np.mean(promedioRGB)
+    # Luego convierto el promedio RGB a un solo valor de gris representativo.
+    promedioGrisPapa = np.mean(promedioRgbPapa)
 
-    imagenFloat = imagen.astype(np.float32)
-    grisPixel = np.mean(imagenFloat, axis=2)
+    # Seguido convierto la imagen a flotante para evitar problemas en las operaciones.
+    imagenEnFlotante = imagen.astype(np.float32)
 
-    mapaOscuridad = promedioGris - grisPixel
+    # luego calculo el valor medio entre canales para cada píxel.
+    intensidadGrisPorPixel = np.mean(imagenEnFlotante, axis=2)
 
-    # Fuera de la papa no interesa
-    mapaOscuridad[mascaraPapa == 0] = 0
+    # luego calculo cuánto más oscuro es cada píxel respecto al promedio.
+    mapaOscuridadRelativa = promedioGrisPapa - intensidadGrisPorPixel
 
-    return mapaOscuridad
+    # Por ultimo Anulo la información fuera de la región segmentada de la papa.
+    mapaOscuridadRelativa[mascaraPapa == 0] = 0
+
+    return mapaOscuridadRelativa  # Retorno el mapa de oscuridad relativa.
 
 
 def CalcularMapaRangoDentroPapa(imagen, mascaraPapa):
-    rango = CalcularRangoRGB(imagen)
-    rango[mascaraPapa == 0] = 0
-    return rango
+    # Mido la variación entre canales RGB y elimina los valores fuera de la máscara de la papa.
+    mapaRangoRgb = CalcularRangoRGB(imagen)  # Calculo el rango entre el máximo y el mínimo canal para cada píxel.
+    mapaRangoRgb[mascaraPapa == 0] = 0  # Coloco en cero todos los valores fuera de la papa.
+
+    return mapaRangoRgb  # Retorno el mapa de rango restringido a la papa.
+
+
+def CalcularMapaDiferenciaCanales(imagen, mascaraPapa):
+    # calculo la separación entre el canal máximo y el mínimo en cada píxel y anula el exterior de la papa.
+    imagenEnFlotante = imagen.astype(np.float32)  # Convierto la imagen a flotante para operar con precisión.
+    canalRojo = imagenEnFlotante[:, :, 0]  # Extraigo el canal rojo.
+    canalVerde = imagenEnFlotante[:, :, 1]  # Extraigo el canal verde.
+    canalAzul = imagenEnFlotante[:, :, 2]  # Extraigo el canal azul.
+
+    # Obtengo el valor máximo y minimo entre los tres canales para cada píxel.
+    valorMaximoEntreCanales = np.maximum(np.maximum(canalRojo, canalVerde), canalAzul)
+    valorMinimoEntreCanales = np.minimum(np.minimum(canalRojo, canalVerde), canalAzul)
+
+    # Calculo la diferencia entre el canal máximo y el mínimo.
+    mapaDiferenciaCanales = valorMaximoEntreCanales - valorMinimoEntreCanales
+
+    mapaDiferenciaCanales[mascaraPapa == 0] = 0  # Coloco en cero los píxeles que están fuera de la papa.
+
+    return mapaDiferenciaCanales
+
+
+def ExpandirCajaDelimitadora(cajaDelimitadora, margen, altoImagen, anchoImagen):
+    # Agrega un margen alrededor de una caja y la recorta para mantenerla dentro del tamaño válido
+    filaMinima, columnaMinima, filaMaxima, columnaMaxima = cajaDelimitadora  # Descompongo la caja delimitadora en sus cuatro coordenadas
+
+    filaMinima = max(0, filaMinima - margen)  # Expando la fila mínima hacia arriba respetando el límite superior
+
+    # Expando la columna mínima hacia la izquierda respetando el límite izquierdo
+    columnaMinima = max(0, columnaMinima - margen)
+
+    # Expando la fila máxima hacia abajo respetando el límite inferior
+    filaMaxima = min(altoImagen - 1, filaMaxima + margen)
+
+    # Expando la columna máxima hacia la derecha respetando el límite derecho
+    columnaMaxima = min(anchoImagen - 1, columnaMaxima + margen)
+
+    return filaMinima, columnaMinima, filaMaxima, columnaMaxima
+
+
+def IntersectanCajasDelimitadoras(cajaDelimitadoraA, cajaDelimitadoraB):
+    # compara los rangos de filas y columnas de ambas cajas para determinar si existe solapamiento
+    filaMinimaA, columnaMinimaA, filaMaximaA, columnaMaximaA = cajaDelimitadoraA  # Descompongo la primera caja delimitadora.
+    filaMinimaB, columnaMinimaB, filaMaximaB, columnaMaximaB = cajaDelimitadoraB  # Descompongo la segunda caja delimitadora.
+
+    # Verifico si las cajas no se superponen en el eje vertical.
+    if filaMaximaA < filaMinimaB or filaMaximaB < filaMinimaA:
+        return False  # Retorno falso porque no existe intersección vertical.
+
+    if columnaMaximaA < columnaMinimaB or columnaMaximaB < columnaMinimaA:  # Verifico si las cajas no se superponen en el eje horizontal.
+        return False  # Retorno falso porque no existe intersección horizontal.
+
+    return True  # Retorno verdadero porque ambas cajas se intersectan.
+
+
+def UnirDosCajasDelimitadoras(cajaDelimitadoraA, cajaDelimitadoraB):
+    # construyo la caja mínima que contiene completamente a las dos cajas recibidas
+    filaMinimaA, columnaMinimaA, filaMaximaA, columnaMaximaA = cajaDelimitadoraA  # Descompongo la primera caja delimitadora
+    filaMinimaB, columnaMinimaB, filaMaximaB, columnaMaximaB = cajaDelimitadoraB  # Descompongo la segunda caja delimitadora
+    cajaUnificada = (min(filaMinimaA, filaMinimaB), min(columnaMinimaA, columnaMinimaB), max(filaMaximaA, filaMaximaB),
+                     max(columnaMaximaA, columnaMaximaB))  # Construyo la caja que cubre ambas cajas
+
+    return cajaUnificada
+
+
+def UnirComponentesCercanos(componentes, dimensionesImagen, margen=6, areaMinimaFinal=40):
+    # fusiono componentes vecinos para evitar que una misma lesión quede fragmentada en muchas cajas pequeñas
+    altoImagen, anchoImagen = dimensionesImagen  # Obtengo las dimensiones de la imagen
+    if len(componentes) == 0:  # Verifico si no se recibió ningún componente
+        return []  # Retorno una lista vacía porque no hay nada que unir
+
+    cajasTemporales = []  # Creo la lista donde guardaré las cajas resumidas de cada componente
+    for componenteActual in componentes:
+        cajasTemporales.append({"cajaDelimitadora": componenteActual["cajaDelimitadora"],
+                                # Guardo únicamente la caja y el área del componente
+                                "areaEnPixeles": componenteActual["areaEnPixeles"]})
+
+    huboCambios = True  # Inicializo la bandera de cambios para entrar al proceso iterativo de unión
+    while huboCambios:  # Repito el proceso mientras siga ocurriendo alguna fusión
+        huboCambios = False  # Reinicio la bandera para esta iteración
+        nuevasCajas = []  # Creo la lista que almacenará el resultado de la iteración actual
+        cajasYaUtilizadas = [False] * len(cajasTemporales)  # Creo una lista para marcar qué cajas ya fueron absorbidas
+
+        for indiceCajaActual in range(len(cajasTemporales)):  # Recorro cada caja disponible en la iteración actual
+            if cajasYaUtilizadas[indiceCajaActual]:  # Verifico si la caja actual ya fue absorbida en una unión previa
+                continue  # Salto a la siguiente caja porque esta ya no debe procesarse
+
+            cajaActual = cajasTemporales[indiceCajaActual]["cajaDelimitadora"]  # Obtengo la caja delimitadora actual
+
+            # Obtengo el área acumulada de la caja actual
+            areaActual = cajasTemporales[indiceCajaActual]["areaEnPixeles"]
+            cajasYaUtilizadas[indiceCajaActual] = True  # Marco la caja actual como utilizada
+
+            # Comparo la caja actual con las cajas siguientes
+            for indiceCajaComparada in range(indiceCajaActual + 1, len(cajasTemporales)):
+                if cajasYaUtilizadas[indiceCajaComparada]:  # Verifico si la caja comparada ya fue absorbida
+                    continue  # Salto a la siguiente comparación porque esta caja ya no participa
+
+                # Expando la caja actual para permitir un margen de cercanía
+                cajaActualExpandida = ExpandirCajaDelimitadora(cajaActual, margen, altoImagen, anchoImagen)
+
+                # Expando la caja comparada con el mismo criterio
+                cajaComparadaExpandida = ExpandirCajaDelimitadora(
+                    cajasTemporales[indiceCajaComparada]["cajaDelimitadora"], margen, altoImagen, anchoImagen)
+
+                # Verifico si las cajas expandidas se tocan o intersectan
+                if IntersectanCajasDelimitadoras(cajaActualExpandida, cajaComparadaExpandida):
+                    # Uno ambas cajas en una sola caja más grande
+                    cajaActual = UnirDosCajasDelimitadoras(cajaActual,
+                                                           cajasTemporales[indiceCajaComparada]["cajaDelimitadora"])
+                    # Acumulo el área de la caja absorbida
+                    areaActual += cajasTemporales[indiceCajaComparada]["areaEnPixeles"]
+                    cajasYaUtilizadas[indiceCajaComparada] = True  # Marco la caja comparada como utilizada
+                    huboCambios = True  # Indico que ocurrió una fusión y que se debe repetir el proceso
+
+            # Guardo la caja resultante luego de intentar fusionarla con sus vecinas
+            nuevasCajas.append({"cajaDelimitadora": cajaActual, "areaEnPixeles": areaActual})
+
+        cajasTemporales = nuevasCajas  # Reemplazo la lista de cajas por el resultado de esta iteración
+
+    componentesFinales = []  # Creo la lista donde guardaré solo los componentes finales válidos
+
+    # Recorro cada caja resultante luego de todas las fusiones
+    for indiceComponenteFinal, cajaActual in enumerate(cajasTemporales):
+        if cajaActual["areaEnPixeles"] >= areaMinimaFinal:  # Verifico si el área final supera el mínimo exigido
+            componentesFinales.append({"etiqueta": indiceComponenteFinal + 1,
+                                       "areaEnPixeles": cajaActual["areaEnPixeles"],
+                                       "cajaDelimitadora": cajaActual["cajaDelimitadora"],
+                                       "pixeles": []})  # Guardo el componente final con su información resumida
+
+    return componentesFinales
 
 
 def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbralOscuridadSuave=20, umbralRango=18,
@@ -492,160 +708,73 @@ def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbra
     return mascaraLesion, componentes
 
 
+def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbralOscuridadSuave=20, umbralRango=18,
+                            umbralDiferenciaCanales=22, areaMinima=12):
+    # Aqui combino las reglas de oscuridad y variación cromática para construir una máscara de lesiones y filtrar ruido pequeño
+
+    # 1. calculo el mapa de oscuridad relativa dentro de la papa para detectar enfermedades que oscurecen la papa
+    mapaOscuridadRelativa = CalcularMapaOscuridadRelativa(imagen, mascaraPapa)
+
+    # 2. Calculo el mapa de rango entre canales dentro de la papa
+    mapaRangoRgb = CalcularMapaRangoDentroPapa(imagen, mascaraPapa)
+
+    # 3. calculo el mapa de diferencia entre canales dentro de la papa
+    mapaDiferenciaCanales = CalcularMapaDiferenciaCanales(imagen, mascaraPapa)
+
+    cumpleReglaOscuridadFuerte = mapaOscuridadRelativa > umbralOscuridadFuerte  # 4. Marco píxeles con oscuridad fuerte
+
+    # 5. Construyo la segunda regla para oscuridad moderada acompañada de variación cromática, exijo que exista oscuridad moderada
+    cumpleReglaOscuridadModeradaConVariacion = ((mapaOscuridadRelativa > umbralOscuridadSuave)
+                                                & (mapaRangoRgb > umbralRango)  # exijo suficiente rango entre canales
+                                                & (mapaDiferenciaCanales > umbralDiferenciaCanales)
+                                                # exijo suficiente diferencia global entre canales
+                                                )
+
+    # 6. Construyo la máscara final de lesiones candidatas
+    mascaraLesiones = ((mascaraPapa == 1)  # Restrinjo la detección al interior de la papa
+                       & (cumpleReglaOscuridadFuerte | cumpleReglaOscuridadModeradaConVariacion)
+                       # Acepto píxeles que cumplan cualquiera de las dos reglas
+                       ).astype(np.uint8)  # Convierto la máscara booleana a enteros 0 y 1
+
+    mascaraLesiones = AbrirBinaria(mascaraLesiones, 3)  # 8. Aplico apertura para eliminar pequeños falsos positivos
+    mascaraLesiones = CerrarBinaria(mascaraLesiones, 5)  # 9. Aplico cierre para consolidar regiones de lesión
+
+    # 10. Elimino regiones demasiado pequeñas de la máscara de lesión
+    mascaraLesiones, componentesLesion = FiltrarComponentesPequenos(mascaraLesiones, areaMinima=areaMinima)
+
+    return mascaraLesiones, componentesLesion
+
+
 def DetectarLesionesEnImagen(imagen):
-    """
-    Pipeline:
-    1) segmentar papas
-    2) para cada papa buscar lesiones oscuras
-    3) unir componentes cercanos
-    """
+    # segmento la papa, busco lesiones oscuras y uno lesiones cercanas en cajas más coherentes para no tener muchas cajas pequeñas dispersas
+    mascaraPapas, componentesPapa = SegmentarPapas(imagen)  # Segmento las papas presentes en la imagen
+    altoImagen, anchoImagen, _ = imagen.shape  # Obtengo las dimensiones de la imagen
 
-    mascaraPapas, componentesPapa = SegmentarPapas(imagen)
+    # Creo la máscara acumulada para todas las lesiones detectadas
+    mascaraLesionesTotal = np.zeros((altoImagen, anchoImagen), dtype=np.uint8)
+    componentesLesionTotales = []  # Inicializo la lista que almacenará todas las lesiones encontradas.
 
-    alto, ancho, _ = imagen.shape
-    mascaraLesionesTotal = np.zeros((alto, ancho), dtype=np.uint8)
-    componentesLesionTotales = []
+    for componentePapaActual in componentesPapa:  # Recorro cada componente asociado a una papa detectada.
 
-    for compPapa in componentesPapa:
-        mascaraPapaIndividual = ObtenerMascaraComponente(compPapa, (alto, ancho))
+        # Construyo una máscara individual para la papa actual.
+        mascaraPapaIndividual = ObtenerMascaraComponente(componentePapaActual, (altoImagen, anchoImagen))
 
-        mascaraLesion, componentesLesion = DetectarLesionesOscuras(
-            imagen,
-            mascaraPapaIndividual,
-            umbralOscuridadFuerte=30,
-            umbralOscuridadSuave=18,
-            umbralRango=16,
-            umbralDifCanales=20,
-            areaMinima=10
-        )
+        # Detecto lesiones dentro de la papa actual.
+        mascaraLesionActual, componentesLesionActuales = DetectarLesionesOscuras(imagen, mascaraPapaIndividual,
+                                                                                 umbralOscuridadFuerte=30,
+                                                                                 umbralOscuridadSuave=18,
+                                                                                 umbralRango=16,
+                                                                                 umbralDiferenciaCanales=20,
+                                                                                 areaMinima=10)
 
-        mascaraLesionesTotal = np.maximum(mascaraLesionesTotal, mascaraLesion)
+        # Acumulo la máscara de lesiones usando el máximo píxel a píxel.
+        mascaraLesionesTotal = np.maximum(mascaraLesionesTotal, mascaraLesionActual)
 
-        for compLesion in componentesLesion:
-            componentesLesionTotales.append(compLesion)
+        for componenteLesionActual in componentesLesionActuales:  # Recorro cada lesión detectada en la papa actual.
+            componentesLesionTotales.append(componenteLesionActual)  # Agrego la lesión a la lista global de lesiones.
 
-    componentesLesionTotales = UnirComponentesCercanos(
-        componentesLesionTotales,
-        (alto, ancho),
-        margen=7,
-        areaMinimaFinal=35
-    )
+    # Uno componentes de lesión cercanos para obtener cajas más limpias.
+    componentesLesionTotales = UnirComponentesCercanos(componentesLesionTotales, (altoImagen, anchoImagen), margen=7,
+                                                       areaMinimaFinal=35)
 
-    return mascaraPapas, componentesPapa, mascaraLesionesTotal, componentesLesionTotales
-
-
-def ExpandirBoundingBox(bbox, margen, alto, ancho):
-    minFila, minCol, maxFila, maxCol = bbox
-
-    minFila = max(0, minFila - margen)
-    minCol = max(0, minCol - margen)
-    maxFila = min(alto - 1, maxFila + margen)
-    maxCol = min(ancho - 1, maxCol + margen)
-
-    return (minFila, minCol, maxFila, maxCol)
-
-
-def IntersectanBoxes(boxA, boxB):
-    a1, b1, a2, b2 = boxA
-    c1, d1, c2, d2 = boxB
-
-    if a2 < c1 or c2 < a1:
-        return False
-    if b2 < d1 or d2 < b1:
-        return False
-
-    return True
-
-
-def UnirDosBoxes(boxA, boxB):
-    a1, b1, a2, b2 = boxA
-    c1, d1, c2, d2 = boxB
-
-    return (
-        min(a1, c1),
-        min(b1, d1),
-        max(a2, c2),
-        max(b2, d2)
-    )
-
-
-def UnirComponentesCercanos(componentes, shape, margen=6, areaMinimaFinal=40):
-    """
-    Une componentes cuyas cajas, al expandirse un poco, se tocan.
-    Sirve para que una lesión grande no termine partida en 8 cajitas.
-    """
-    alto, ancho = shape
-    if len(componentes) == 0:
-        return []
-
-    cajas = []
-    for comp in componentes:
-        cajas.append({
-            "bbox": comp["bbox"],
-            "area": comp["area"]
-        })
-
-    cambio = True
-    while cambio:
-        cambio = False
-        nuevas = []
-        usados = [False] * len(cajas)
-
-        for i in range(len(cajas)):
-            if usados[i]:
-                continue
-
-            actual = cajas[i]["bbox"]
-            areaActual = cajas[i]["area"]
-            usados[i] = True
-
-            for j in range(i + 1, len(cajas)):
-                if usados[j]:
-                    continue
-
-                boxA = ExpandirBoundingBox(actual, margen, alto, ancho)
-                boxB = ExpandirBoundingBox(cajas[j]["bbox"], margen, alto, ancho)
-
-                if IntersectanBoxes(boxA, boxB):
-                    actual = UnirDosBoxes(actual, cajas[j]["bbox"])
-                    areaActual += cajas[j]["area"]
-                    usados[j] = True
-                    cambio = True
-
-            nuevas.append({
-                "bbox": actual,
-                "area": areaActual
-            })
-
-        cajas = nuevas
-
-    componentesFinales = []
-    for i, caja in enumerate(cajas):
-        if caja["area"] >= areaMinimaFinal:
-            componentesFinales.append({
-                "etiqueta": i + 1,
-                "area": caja["area"],
-                "bbox": caja["bbox"],
-                "pixels": []
-            })
-
-    return componentesFinales
-
-
-def CalcularMapaDiferenciaCanales(imagen, mascaraPapa):
-    """
-    Mide cuánta separación hay entre canales RGB.
-    Muchas lesiones oscuras no son gris puro, tienen variación entre canales.
-    """
-    imagenFloat = imagen.astype(np.float32)
-    canalR = imagenFloat[:, :, 0]
-    canalG = imagenFloat[:, :, 1]
-    canalB = imagenFloat[:, :, 2]
-
-    maximo = np.maximum(np.maximum(canalR, canalG), canalB)
-    minimo = np.minimum(np.minimum(canalR, canalG), canalB)
-
-    mapa = maximo - minimo
-    mapa[mascaraPapa == 0] = 0
-
-    return mapa
+    return mascaraPapas, componentesPapa, mascaraLesionesTotal, componentesLesionTotales  # Retorno las máscaras y listas de componentes generadas por el pipeline.
