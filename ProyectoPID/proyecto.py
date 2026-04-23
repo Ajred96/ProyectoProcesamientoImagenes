@@ -105,31 +105,41 @@ def MostrarEjemplosPorClase(rutas, yMulticlase, cantidad=3):
     plt.show()
 
 
-def DibujarBoundingBoxes(imagen, componentes, color=(255, 0, 0)):
-    salida = imagen.copy()
+def DibujarCajasDelimitadoras(imagen, componentes, colorCaja=(255, 0, 0)):
+    # recorro los componentes detectados y dibuja sus bordes sobre una copia de la imagen original
+    imagenConCajas = imagen.copy()
 
-    for comp in componentes:
-        minFila, minCol, maxFila, maxCol = comp["bbox"]
+    for componenteActual in componentes:
+        # Extraigo las coordenadas de la caja delimitadora del componente
+        filaMinima, columnaMinima, filaMaxima, columnaMaxima = componenteActual["cajaDelimitadora"]
 
-        salida[minFila:maxFila + 1, minCol] = color
-        salida[minFila:maxFila + 1, maxCol] = color
-        salida[minFila, minCol:maxCol + 1] = color
-        salida[maxFila, minCol:maxCol + 1] = color
+        # Pinto el borde izquierdo de la caja delimitadora
+        imagenConCajas[filaMinima:filaMaxima + 1, columnaMinima] = colorCaja
+        # Pinto el borde derecho de la caja delimitadora
+        imagenConCajas[filaMinima:filaMaxima + 1, columnaMaxima] = colorCaja
+        # Pinto el borde superior de la caja delimitadora
+        imagenConCajas[filaMinima, columnaMinima:columnaMaxima + 1] = colorCaja
+        # Pinto el borde inferior de la caja delimitadora
+        imagenConCajas[filaMaxima, columnaMinima:columnaMaxima + 1] = colorCaja
 
-    return salida
+    return imagenConCajas
 
 
-def PintarMascaraSobreImagen(imagen, mascara, color=(255, 0, 0)):
-    salida = imagen.copy()
+def PintarMascaraSobreImagen(imagen, mascara, colorSuperposicion=(255, 0, 0)):
+    # mix parcial del color elegido con los píxeles donde la máscara vale 1
+    imagenConSuperposicion = imagen.copy()
 
-    for canal in range(3):
-        salida[:, :, canal] = np.where(
-            mascara == 1,
-            np.clip(0.6 * salida[:, :, canal] + 0.4 * color[canal], 0, 255),
-            salida[:, :, canal]
+    for indiceCanalColor in range(3):  # Recorro los tres canales de color RGB
+        imagenConSuperposicion[:, :, indiceCanalColor] = np.where(
+            # Reemplazo solo los píxeles donde la máscara está activa
+            mascara == 1,  # Verifico cuáles posiciones pertenecen a la máscara
+            np.clip(0.6 * imagenConSuperposicion[:, :, indiceCanalColor] + 0.4 * colorSuperposicion[indiceCanalColor],
+                    0, 255),  # Mezclo el canal original con el color elegido y limito el rango
+            imagenConSuperposicion[:, :, indiceCanalColor]
+            # Mantengo el valor original en los píxeles donde no hay máscara
         )
 
-    return salida.astype(np.uint8)
+    return imagenConSuperposicion.astype(np.uint8)
 
 
 def ProbarDeteccionLesion(rutaImagen):
@@ -137,7 +147,7 @@ def ProbarDeteccionLesion(rutaImagen):
 
     mascaraPapas, componentesPapa, mascaraLesiones, componentesLesion = DetectarLesionesEnImagen(img)
 
-    imgBoxesLesion = DibujarBoundingBoxes(img, componentesLesion, color=(255, 0, 0))
+    imgBoxesLesion = DibujarCajasDelimitadoras(img, componentesLesion, color=(255, 0, 0))
     imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones, color=(255, 0, 0))
 
     plt.figure(figsize=(20, 4))
@@ -178,7 +188,7 @@ def ProbarSegmentacion(rutaImagen):
     img = CargarImagen(rutaImagen)
 
     mascara, componentes = SegmentarPapas(img)
-    imgBoxes = DibujarBoundingBoxes(img, componentes)
+    imgBoxes = DibujarCajasDelimitadoras(img, componentes)
 
     plt.figure(figsize=(12, 4))
 
