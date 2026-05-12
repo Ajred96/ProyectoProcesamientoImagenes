@@ -147,8 +147,8 @@ def ProbarDeteccionLesion(rutaImagen):
 
     mascaraPapas, componentesPapa, mascaraLesiones, componentesLesion = DetectarLesionesEnImagen(img)
 
-    imgBoxesLesion = DibujarCajasDelimitadoras(img, componentesLesion, color=(255, 0, 0))
-    imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones, color=(255, 0, 0))
+    imgBoxesLesion = DibujarCajasDelimitadoras(img, componentesLesion, colorCaja=(255, 0, 0))
+    imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones, colorSuperposicion=(255, 0, 0))
 
     plt.figure(figsize=(20, 4))
 
