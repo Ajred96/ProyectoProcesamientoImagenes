@@ -1,6 +1,23 @@
 import numpy as np
 
 
+class Kernel:
+    def __init__(self):
+        pass
+
+    def blur(self):
+        return np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9
+
+    def gaussian(self):
+        return np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16
+
+    def edge(self):
+        return np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+
+    def sharpen(self):
+        return np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+
+
 def calculate_histogram(channel: np.ndarray):
     if channel.dtype == np.uint8:
         bins = np.arange(0, 256)
@@ -58,8 +75,7 @@ def binary_dilation(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     for i in range(out_h):
         for j in range(out_w):
             region = padded[i : i + kernel.shape[0], j : j + kernel.shape[1]]
-            # Dilation condition: ANY overlap
-            output[i, j] = np.max(region[kernel])
+            output[i, j] = 1 if np.any(region == 1) else 0
 
     return output
 
@@ -75,19 +91,46 @@ def binary_erosion(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     for i in range(out_h):
         for j in range(out_w):
             region = padded[i : i + kernel.shape[0], j : j + kernel.shape[1]]
-            output[i, j] = np.min(region[kernel])
+            output[i, j] = 1 if np.all(region == 1) else 0
 
     return output
 
 
 def binary_closing(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
-    Performs binary closing. Closing is Dilation followed by Erosion.
+    Ejecuta un cierre morfológico binario. Un cierre es una dilatación seguida de una erosión.
     """
-    # 1. Dilation: Get the maximum value in the neighborhood
+    # 1. Dilatación: Obtiene el valor máximo en la vecindad
     dilated = binary_dilation(image, kernel)
 
-    # 2. Erosion: Get the minimum value in the neighborhood
+    # 2. Erosion: Obtiene el valor mínimo dene la vencidad
     closed = binary_erosion(dilated, kernel)
 
     return closed.astype(np.bool)
+
+
+def filter(image, kernel):
+    """
+    Añade un filtro a una imagen a través de un kernel
+    """
+    kernel_height, kernel_width = kernel.shape
+
+    p_h = kernel_height // 2
+    p_w = kernel_width // 2
+
+    image = np.pad(image, ((p_h, p_h), (p_w, p_w)), "reflect")
+
+    image_height, image_width = image.shape
+
+    output_height = image_height - kernel_height + 1
+    output_width = image_width - kernel_width + 1
+
+    output = np.zeros((output_height, output_width))
+
+    for i in range(output_height):
+        for j in range(output_width):
+            region = image[i : i + kernel_height, j : j + kernel_width]
+            rounded = np.round(np.multiply(region, kernel))
+            output[i, j] = np.sum(rounded)
+
+    return output
