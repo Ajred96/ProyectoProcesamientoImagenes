@@ -15,7 +15,7 @@ path = "./dataset/Moho_negro/1.jpg"
 image = Image.open(path)
 
 
-def black_scurf_mask(image, chroma_threshold=0.2, closing_radius=3, min_area=20):
+def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=3, min_area=20):
 
     # Cargar imagen
     img = image.convert("RGB")
@@ -34,9 +34,8 @@ def black_scurf_mask(image, chroma_threshold=0.2, closing_radius=3, min_area=20)
     norm_img_array = result / 255.0
 
     # Convertir a grises
-    yuv = np.matmul(
-        norm_img_array, [0.298936021293775, 0.587043074451121, 0.114020904255103]
-    )
+    RGBTOYUV = [0.298936021293775, 0.587043074451121, 0.114020904255103]
+    yuv = np.matmul(norm_img_array, RGBTOYUV)
 
     hist, bin_edges, bin_centers = calculate_histogram(yuv)
 
@@ -75,11 +74,11 @@ def black_scurf_mask(image, chroma_threshold=0.2, closing_radius=3, min_area=20)
     return norm_img_array, clean_mask, overlay, regions, min_area
 
 
-norm_img_array, clean_mask, overlay, regions, min_area = black_scurf_mask(image)
+original_image, clean_mask, overlay, regions, min_area = detect_black_scurf(image)
 
 fig, axs = plt.subplots(1, 4, figsize=(20, 5))
 
-axs[0].imshow(norm_img_array)
+axs[0].imshow(original_image)
 axs[0].set_title("Original")
 axs[0].axis("off")
 
@@ -87,11 +86,12 @@ axs[1].imshow(clean_mask, cmap="gray")
 axs[1].set_title("Detected Mask")
 axs[1].axis("off")
 
-axs[2].imshow(overlay)
+axs[2].imshow(original_image)
+axs[2].imshow(overlay, alpha=0.4)
 axs[2].set_title("Detected Black Scurf")
 axs[2].axis("off")
 
-axs[3].imshow(norm_img_array)
+axs[3].imshow(original_image)
 
 # Crear una única caja delimitadora que encierre los límites de la enfermedad
 

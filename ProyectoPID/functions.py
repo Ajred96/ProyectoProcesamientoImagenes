@@ -2,23 +2,45 @@ import numpy as np
 
 
 class Kernel:
+    """
+    Clase para instanciar los diferentes filtros para utilizar en convolución
+    """
+
     def __init__(self):
+        """Método constructor"""
         pass
 
     def blur(self):
+        """Kernel para difuminar la imagen"""
         return np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9
 
-    def gaussian(self):
+    def gauss(self):
+        """Kernel para el desenfoque gaussiano de la imagen"""
         return np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16
 
     def edge(self):
+        """Kernel para resaltar los bordes de la imagen"""
         return np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
 
     def sharpen(self):
+        """Kernel para afilar la imagen"""
         return np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+
+    def sobel_x(self):
+        """Kernel para aplicar Sobel en horizontal"""
+        return np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+
+    def sobel_y(self):
+        """Kernel para aplicar Sobel en vertical"""
+        return np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+
+    def laplace(self):
+        """Kernel para aplicar el filtor Laplaciano"""
+        return np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
 
 
 def calculate_histogram(channel: np.ndarray):
+    """Función para calcular el histograma de un canal o imagen"""
     if channel.dtype == np.uint8:
         bins = np.arange(0, 256)
     else:
@@ -70,7 +92,7 @@ def binary_dilation(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     padded = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="reflect")
 
     output = np.zeros_like(image, dtype=np.uint8)
-    out_h, out_w = output.shape[0], output.shape[1]
+    out_h, out_w = output.shape
 
     for i in range(out_h):
         for j in range(out_w):
@@ -86,7 +108,7 @@ def binary_erosion(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     padded = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="reflect")
 
     output = np.zeros_like(image, dtype=np.uint8)
-    out_h, out_w = output.shape[0], output.shape[1]
+    out_h, out_w = output.shape
 
     for i in range(out_h):
         for j in range(out_w):
@@ -130,7 +152,6 @@ def filter(image, kernel):
     for i in range(output_height):
         for j in range(output_width):
             region = image[i : i + kernel_height, j : j + kernel_width]
-            rounded = np.round(np.multiply(region, kernel))
-            output[i, j] = np.sum(rounded)
+            output[i, j] = np.sum(np.multiply(region, kernel))
 
     return output
