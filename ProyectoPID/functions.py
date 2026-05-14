@@ -92,7 +92,7 @@ def binary_dilation(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     padded = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="reflect")
 
     output = np.zeros_like(image, dtype=np.uint8)
-    out_h, out_w = output.shape[0], output.shape[1]
+    out_h, out_w = output.shape
 
     for i in range(out_h):
         for j in range(out_w):
@@ -108,7 +108,7 @@ def binary_erosion(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     padded = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="reflect")
 
     output = np.zeros_like(image, dtype=np.uint8)
-    out_h, out_w = output.shape[0], output.shape[1]
+    out_h, out_w = output.shape
 
     for i in range(out_h):
         for j in range(out_w):
