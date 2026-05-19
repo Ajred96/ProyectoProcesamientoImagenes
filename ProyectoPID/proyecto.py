@@ -287,7 +287,7 @@ def MostrarProcesoMorfologico(rutaImagen):
     plt.show()
 
 
-def ClasificarBinarioPorMascara(mascaraPapas, mascaraLesiones, porcentajeMinimoLesion=0.006, areaMinimaAbsoluta=18):
+def ClasificarBinarioPorMascara(mascaraPapas, mascaraLesiones, porcentajeMinimoLesion=0.018, areaMinimaAbsoluta=45):
     areaPapa = np.sum(mascaraPapas == 1)
     areaLesion = np.sum(mascaraLesiones == 1)
 
@@ -296,7 +296,8 @@ def ClasificarBinarioPorMascara(mascaraPapas, mascaraLesiones, porcentajeMinimoL
 
     porcentajeLesion = areaLesion / areaPapa
 
-    # Enferma si hay lesión suficiente por porcentaje o por cantidad absoluta de píxeles.
+    # Subo el umbral porque antes cualquier sombra pequeña mandaba la papa a Enferma.
+    # Ahora pido una cantidad mínima más razonable de lesión.
     if porcentajeLesion >= porcentajeMinimoLesion or areaLesion >= areaMinimaAbsoluta:
         return "Enferma", porcentajeLesion
 
@@ -342,8 +343,8 @@ def EvaluarBinarioInteractivo(cantidadPorClase=10):
             diagnostico, porcentajeLesion = ClasificarBinarioPorMascara(
                 mascaraPapas,
                 mascaraLesiones,
-                porcentajeMinimoLesion=0.006,
-                areaMinimaAbsoluta=18
+                porcentajeMinimoLesion=0.018,
+                areaMinimaAbsoluta=45
             )
 
             imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones)
