@@ -147,8 +147,8 @@ def ProbarDeteccionLesion(rutaImagen):
 
     mascaraPapas, componentesPapa, mascaraLesiones, componentesLesion = DetectarLesionesEnImagen(img)
 
-    imgBoxesLesion = DibujarCajasDelimitadoras(img, componentesLesion, color=(255, 0, 0))
-    imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones, color=(255, 0, 0))
+    imgBoxesLesion = DibujarCajasDelimitadoras(img, componentesLesion)
+    imgOverlayLesion = PintarMascaraSobreImagen(img, mascaraLesiones)
 
     plt.figure(figsize=(20, 4))
 
@@ -213,7 +213,36 @@ def ProbarSegmentacion(rutaImagen):
     print("Componentes detectados:", len(componentes))
 
 
+def ContarImagenesPorClase():
+    print("=== CANTIDAD DE IMÁGENES POR CARPETA ===\n")
+
+    totalImagenes = 0
+
+    for carpeta in CARPETAS_CLASES:
+        rutaCarpeta = os.path.join(RUTA_DATASET, carpeta)
+
+        if not os.path.isdir(rutaCarpeta):
+            print(f"{carpeta}: carpeta no encontrada")
+            continue
+
+        cantidad = 0
+
+        for nombreArchivo in os.listdir(rutaCarpeta):
+            rutaArchivo = os.path.join(rutaCarpeta, nombreArchivo)
+
+            # Verifico que sí sea un archivo
+            if os.path.isfile(rutaArchivo):
+                cantidad += 1
+
+        totalImagenes += cantidad
+
+        print(f"{carpeta}: {cantidad} imágenes")
+
+    print(f"\nTOTAL DATASET: {totalImagenes} imágenes")
+
+
 if __name__ == "__main__":
+    ContarImagenesPorClase()
     ruta = os.path.join("dataset", "Costra_comun", os.listdir(os.path.join("dataset", "Costra_comun"))[0])
     ruta2 = os.path.join("dataset", "Papas_saludables", os.listdir(os.path.join("dataset", "Papas_saludables"))[0])
     ruta3 = os.path.join("dataset", "Moho_negro", os.listdir(os.path.join("dataset", "Moho_negro"))[0])

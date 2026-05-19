@@ -132,6 +132,30 @@ def obtenerKernelYDenominador(metodo):
         ], dtype=np.float32)
         denominador = 256
 
+    elif metodo == "sobel_x":
+        kernel = np.array([
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ], dtype=np.float32)
+        denominador = 1
+
+    elif metodo == "sobel_y":
+        kernel = np.array([
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1]
+        ], dtype=np.float32)
+        denominador = 1
+
+    elif metodo == "laplaciano":
+        kernel = np.array([
+            [0, 1, 0],
+            [1, -4, 1],
+            [0, 1, 0]
+        ], dtype=np.float32)
+        denominador = 8
+
     else:
         raise ValueError(f"Método no válido: {metodo}")
 
@@ -185,6 +209,185 @@ def aplicarConvolucion(imagen, metodo):
 
     else:
         raise ValueError("La imagen debe ser 2D o 3D")
+
+
+def NormalizarA255(imagen):
+    valorMaximo = np.max(imagen)
+
+    if valorMaximo == 0:
+        return np.zeros_like(imagen, dtype=np.uint8)
+
+    imagenNormalizada = (imagen / valorMaximo) * 255
+    return imagenNormalizada.astype(np.uint8)
+
+
+def ConvertirAGrises(img):
+    canalR = img[:, :, 0].astype(np.float32)
+    canalG = img[:, :, 1].astype(np.float32)
+    canalB = img[:, :, 2].astype(np.float32)
+
+    gris = 0.299 * canalR + 0.587 * canalG + 0.114 * canalB
+
+    return gris
+
+
+def AplicarSobelAImagen(img, suavizar=False, metodoSuavizado="gaussiano_5x5"):
+    gris = ConvertirAGrises(img)
+
+    if suavizar:
+        gris = aplicarConvolucion(gris, metodoSuavizado)
+
+    sobelX = aplicarConvolucion(gris, "sobel_x")
+    sobelY = aplicarConvolucion(gris, "sobel_y")
+
+    sobelXAbs = np.abs(sobelX)
+    sobelYAbs = np.abs(sobelY)
+
+    sobelUnido = np.sqrt(sobelX ** 2 + sobelY ** 2)
+
+    direccion = np.arctan2(sobelY, sobelX)
+    direccionGrados = np.degrees(direccion)
+
+    sobelXNormalizado = NormalizarA255(sobelXAbs)
+    sobelYNormalizado = NormalizarA255(sobelYAbs)
+    sobelUnidoNormalizado = NormalizarA255(sobelUnido)
+
+    return {
+        "gris": gris,
+        "sobelX": sobelX,
+        "sobelY": sobelY,
+        "sobelXAbs": sobelXAbs,
+        "sobelYAbs": sobelYAbs,
+        "sobelUnido": sobelUnido,
+        "sobelXNormalizado": sobelXNormalizado,
+        "sobelYNormalizado": sobelYNormalizado,
+        "sobelUnidoNormalizado": sobelUnidoNormalizado,
+        "direccionGrados": direccionGrados
+    }
+
+
+def DiscretizarDireccionCanny(direccionGrados):
+    angulo = direccionGrados.copy()
+
+    direccionDiscretizada = np.zeros_like(angulo, dtype=np.float32)
+
+    direccionDiscretizada[(angulo >= -22.5) & (angulo <= 22.5)] = 0
+
+    direccionDiscretizada[((angulo >= 22.5) & (angulo <= 67.5)) |
+                          ((angulo >= -157.5) & (angulo <= -112.5))] = 45
+
+    direccionDiscretizada[((angulo >= 67.5) & (angulo <= 112.5)) |
+                          ((angulo >= -112.5) & (angulo <= -67.5))] = 90
+
+    direccionDiscretizada[((angulo >= 112.5) & (angulo <= 157.5)) |
+                          ((angulo >= -67.5) & (angulo <= -22.5))] = 135
+
+    return direccionDiscretizada
+
+
+def SupresionNoMaximos(magnitud, direccionDiscretizada):
+    alto, ancho = magnitud.shape
+    salida = np.zeros((alto, ancho), dtype=np.float32)
+
+    for fila in range(1, alto - 1):
+        for columna in range(1, ancho - 1):
+
+            valorActual = magnitud[fila, columna]
+            direccion = direccionDiscretizada[fila, columna]
+
+            if direccion == 0:
+                vecino1 = magnitud[fila, columna - 1]
+                vecino2 = magnitud[fila, columna + 1]
+
+            elif direccion == 45:
+                vecino1 = magnitud[fila - 1, columna + 1]
+                vecino2 = magnitud[fila + 1, columna - 1]
+
+            elif direccion == 90:
+                vecino1 = magnitud[fila - 1, columna]
+                vecino2 = magnitud[fila + 1, columna]
+
+            elif direccion == 135:
+                vecino1 = magnitud[fila - 1, columna - 1]
+                vecino2 = magnitud[fila + 1, columna + 1]
+
+            if valorActual >= vecino1 and valorActual >= vecino2:
+                salida[fila, columna] = valorActual
+            else:
+                salida[fila, columna] = 0
+
+    return salida
+
+
+def DobleUmbralCanny(imagenNms, umbralBajo, umbralAlto):
+    alto, ancho = imagenNms.shape
+    salida = np.zeros((alto, ancho), dtype=np.uint8)
+
+    bordeDebil = 75
+    bordeFuerte = 255
+
+    for fila in range(alto):
+        for columna in range(ancho):
+            valor = imagenNms[fila, columna]
+
+            if valor >= umbralAlto:
+                salida[fila, columna] = bordeFuerte
+
+            elif valor >= umbralBajo:
+                salida[fila, columna] = bordeDebil
+
+            else:
+                salida[fila, columna] = 0
+
+    return salida
+
+
+def HisteresisCanny(imagenUmbralizada):
+    alto, ancho = imagenUmbralizada.shape
+
+    bordeDebil = 75
+    bordeFuerte = 255
+
+    salida = imagenUmbralizada.copy()
+
+    for fila in range(1, alto - 1):
+        for columna in range(1, ancho - 1):
+
+            if salida[fila, columna] == bordeDebil:
+
+                ventana = salida[fila - 1:fila + 2, columna - 1:columna + 2]
+
+                if np.any(ventana == bordeFuerte):
+                    salida[fila, columna] = bordeFuerte
+                else:
+                    salida[fila, columna] = 0
+
+    return salida
+
+
+def AplicarCanny(img, umbralBajo=50, umbralAlto=120):
+    resultadoSobel = AplicarSobelAImagen(
+        img,
+        suavizar=True,
+        metodoSuavizado="gaussiano_5x5"
+    )
+
+    magnitud = resultadoSobel["sobelUnido"]
+    direccion = resultadoSobel["direccionGrados"]
+
+    direccionDiscretizada = DiscretizarDireccionCanny(direccion)
+    bordesDelgados = SupresionNoMaximos(magnitud, direccionDiscretizada)
+    bordesUmbralizados = DobleUmbralCanny(bordesDelgados, umbralBajo, umbralAlto)
+    bordesFinales = HisteresisCanny(bordesUmbralizados)
+
+    return {
+        "magnitud": magnitud,
+        "direccion": direccion,
+        "direccionDiscretizada": direccionDiscretizada,
+        "bordesDelgados": bordesDelgados,
+        "bordesUmbralizados": bordesUmbralizados,
+        "bordesFinales": bordesFinales
+    }
 
 
 # Calculo la distribución acumulada del histograma y si recibo true en normalizar lo hago normalizarla.
