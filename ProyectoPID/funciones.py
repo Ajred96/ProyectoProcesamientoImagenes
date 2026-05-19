@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# region Algoritmos de clase
 def ConvertirRgbAYuv(imagenRgb):
     imagenFloat = imagenRgb.astype(
         np.float32) / 255.0  # Convierto la imagen a tipo flotante y normalizo para que quede entre 0-1
@@ -132,6 +133,30 @@ def obtenerKernelYDenominador(metodo):
         ], dtype=np.float32)
         denominador = 256
 
+    elif metodo == "sobel_x":
+        kernel = np.array([
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ], dtype=np.float32)
+        denominador = 1
+
+    elif metodo == "sobel_y":
+        kernel = np.array([
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1]
+        ], dtype=np.float32)
+        denominador = 1
+
+    elif metodo == "laplaciano":
+        kernel = np.array([
+            [0, 1, 0],
+            [1, -4, 1],
+            [0, 1, 0]
+        ], dtype=np.float32)
+        denominador = 8
+
     else:
         raise ValueError(f"Método no válido: {metodo}")
 
@@ -187,100 +212,188 @@ def aplicarConvolucion(imagen, metodo):
         raise ValueError("La imagen debe ser 2D o 3D")
 
 
-# Calculo la distribución acumulada del histograma y si recibo true en normalizar lo hago normalizarla.
-def calcularDistribucionAcumulada(histograma, normalizar=False):
-    # Esta función acumula las frecuencias del histograma
-    if len(histograma) != 256:  # Verifico que el histograma tenga exactamente 256 posiciones.
-        raise ValueError("El histograma debe tener 256 posiciones")
+def NormalizarA255(imagen):
+    valorMaximo = np.max(imagen)
 
-    distribucionAcumulada = np.cumsum(histograma)  # Calculo la suma acumulada de las frecuencias del histograma.
+    if valorMaximo == 0:
+        return np.zeros_like(imagen, dtype=np.uint8)
 
-    if normalizar:
-        distribucionAcumuladaMinima = np.min(distribucionAcumulada)  # Valor mínimo de la distribución acumulada.
-        distribucionAcumuladaMaxima = np.max(distribucionAcumulada)  # Valor máximo de la distribución acumulada.
-
-        if distribucionAcumuladaMaxima > distribucionAcumuladaMinima:  # Verifico si hay un rango válido para normalizar.
-            distribucionAcumulada = ((distribucionAcumulada - distribucionAcumuladaMinima) / (
-                    distribucionAcumuladaMaxima - distribucionAcumuladaMinima)) * 255  # Escalo la distribución acumulada al rango de intensidades 0-255.
-        else:
-            distribucionAcumulada = np.zeros_like(
-                distribucionAcumulada)  # Creo una distribución acumulada llena de ceros porque no se puede normalizar.
-
-        distribucionAcumulada = np.round(distribucionAcumulada).astype(np.uint8)
-
-    return distribucionAcumulada
+    imagenNormalizada = (imagen / valorMaximo) * 255
+    return imagenNormalizada.astype(np.uint8)
 
 
-def ConvertirYuvARgb(imagenYuv):
-    canalLuminancia = imagenYuv[:, :, 0]  # Extraigo el canal de luminancia Y
-    canalCrominanciaAzul = imagenYuv[:, :, 1]  # Extraigo el canal de crominancia U
-    canalCrominanciaRoja = imagenYuv[:, :, 2]  # Extraigo el canal de crominancia V
+def ConvertirAGrises(img):
+    canalR = img[:, :, 0].astype(np.float32)
+    canalG = img[:, :, 1].astype(np.float32)
+    canalB = img[:, :, 2].astype(np.float32)
 
-    canalRojo = canalLuminancia + 1.14 * canalCrominanciaRoja  # Calculo el canal rojo a partir de Y y V.
-    canalVerde = canalLuminancia - 0.395 * canalCrominanciaAzul - 0.581 * canalCrominanciaRoja  # Calculo el canal verde a partir de Y, U y V.
-    canalAzul = canalLuminancia + 2.032 * canalCrominanciaAzul  # Calculo el canal azul a partir de Y y U.
+    gris = 0.299 * canalR + 0.587 * canalG + 0.114 * canalB
 
-    imagenRgb = np.stack((canalRojo, canalVerde, canalAzul), axis=2)  # Uno los tres canales RGB en una sola imagen.
-    imagenRgb = np.clip(imagenRgb, 0, 1)  # Limito los valores al rango válido entre 0 y 1.
-    imagenRgb = (imagenRgb * 255).astype(np.uint8)  # Escalo la imagen al rango 0-255 y la convierto a uint8.
-
-    return imagenRgb  # Retorno la imagen convertida al espacio RGB.
+    return gris
 
 
-def ExtraerCanalesYUV(imagenRgb):
-    # Llamo la funcion ConvertirRgbAYuv y extraigo los canales YUV
-    imagenYuv = ConvertirRgbAYuv(imagenRgb)
-    canalY = imagenYuv[:, :, 0]  # Extraigo el canal Y de luminancia.
-    canalU = imagenYuv[:, :, 1]  # Extraigo el canal U de crominancia.
-    canalV = imagenYuv[:, :, 2]  # Extraigo el canal V de crominancia.
-    return canalY, canalU, canalV
+def AplicarSobelAImagen(img, suavizar=False, metodoSuavizado="gaussiano_5x5"):
+    gris = ConvertirAGrises(img)
+
+    if suavizar:
+        gris = aplicarConvolucion(gris, metodoSuavizado)
+
+    sobelX = aplicarConvolucion(gris, "sobel_x")
+    sobelY = aplicarConvolucion(gris, "sobel_y")
+
+    sobelXAbs = np.abs(sobelX)
+    sobelYAbs = np.abs(sobelY)
+
+    sobelUnido = np.sqrt(sobelX ** 2 + sobelY ** 2)
+
+    direccion = np.arctan2(sobelY, sobelX)
+    direccionGrados = np.degrees(direccion)
+
+    sobelXNormalizado = NormalizarA255(sobelXAbs)
+    sobelYNormalizado = NormalizarA255(sobelYAbs)
+    sobelUnidoNormalizado = NormalizarA255(sobelUnido)
+
+    return {
+        "gris": gris,
+        "sobelX": sobelX,
+        "sobelY": sobelY,
+        "sobelXAbs": sobelXAbs,
+        "sobelYAbs": sobelYAbs,
+        "sobelUnido": sobelUnido,
+        "sobelXNormalizado": sobelXNormalizado,
+        "sobelYNormalizado": sobelYNormalizado,
+        "sobelUnidoNormalizado": sobelUnidoNormalizado,
+        "direccionGrados": direccionGrados
+    }
 
 
-def CalcularHistogramaGrises(canal):
-    if canal.dtype != np.uint8:
-        # Recorto valores fuera de rango 0-255, convirtiendo los menores en 0 y mayores en 255
-        # Y convierto la imagen a enteros sin signo de 8 bits (uint8), para asegurar valores entre 0-255
-        canal = np.clip(canal, 0, 255).astype(np.uint8)
+def DiscretizarDireccionCanny(direccionGrados):
+    angulo = direccionGrados.copy()
 
-    # np.bincount() # Cuenta cuántas veces aparece cada número entero
-    # minlength=256 me asegura que el arreglo final tenga posiciones desde 0-255
-    histograma = np.bincount(canal.flatten(), minlength=256)
-    return histograma
+    direccionDiscretizada = np.zeros_like(angulo, dtype=np.float32)
 
+    direccionDiscretizada[(angulo >= -22.5) & (angulo <= 22.5)] = 0
 
-def AplicarOtsuACanal(canal):
-    # Recorto valores fuera de rango 0-255, convirtiendo los menores en 0 y mayores en 255
-    # Y convierto la imagen a enteros sin signo de 8 bits (uint8), para asegurar valores entre 0-255
-    canal255 = np.clip(canal * 255, 0, 255).astype(np.uint8)
-    histograma = CalcularHistogramaGrises(canal255)  # Calculo el histograma del canal Y
-    umbral = otsu(histograma)  # Calculo el umbral del histograma del canal Y
-    return umbral / 255.0  # Lo retorno normalizado entre 0-1
+    direccionDiscretizada[((angulo >= 22.5) & (angulo <= 67.5)) |
+                          ((angulo >= -157.5) & (angulo <= -112.5))] = 45
+
+    direccionDiscretizada[((angulo >= 67.5) & (angulo <= 112.5)) |
+                          ((angulo >= -112.5) & (angulo <= -67.5))] = 90
+
+    direccionDiscretizada[((angulo >= 112.5) & (angulo <= 157.5)) |
+                          ((angulo >= -67.5) & (angulo <= -22.5))] = 135
+
+    return direccionDiscretizada
 
 
-def BinarizarCanal(canal, umbral, invertir=False):
-    # Genera una máscara binaria a partir de un canal de imagen comparándolo con un umbral.
-    # Si invertir=False: los valores >= umbral se consideran 1 (objeto) y el resto 0 (fondo).
-    # Si invertir=True: se invierte el criterio (valores < umbral son 1).
-    if invertir:
-        mascara = canal < umbral
-    else:
-        mascara = canal >= umbral
+def SupresionNoMaximos(magnitud, direccionDiscretizada):
+    alto, ancho = magnitud.shape
+    salida = np.zeros((alto, ancho), dtype=np.float32)
 
-    # Convierto la máscara booleana (True/False) a uint8 (1/0)
-    return mascara.astype(np.uint8)
+    for fila in range(1, alto - 1):
+        for columna in range(1, ancho - 1):
+
+            valorActual = magnitud[fila, columna]
+            direccion = direccionDiscretizada[fila, columna]
+
+            if direccion == 0:
+                vecino1 = magnitud[fila, columna - 1]
+                vecino2 = magnitud[fila, columna + 1]
+
+            elif direccion == 45:
+                vecino1 = magnitud[fila - 1, columna + 1]
+                vecino2 = magnitud[fila + 1, columna - 1]
+
+            elif direccion == 90:
+                vecino1 = magnitud[fila - 1, columna]
+                vecino2 = magnitud[fila + 1, columna]
+
+            elif direccion == 135:
+                vecino1 = magnitud[fila - 1, columna - 1]
+                vecino2 = magnitud[fila + 1, columna + 1]
+
+            if valorActual >= vecino1 and valorActual >= vecino2:
+                salida[fila, columna] = valorActual
+            else:
+                salida[fila, columna] = 0
+
+    return salida
 
 
-def CalcularPorcentajeMascara(mascara):
-    # Calcula qué proporción de la imagen pertenece al objeto (pixeles distintos de 0).
-    # np.sum(mascara > 0): cuenta los pixeles activos (valor 1)
-    # mascara.size: total de pixeles
-    return np.sum(mascara > 0) / mascara.size
+def DobleUmbralCanny(imagenNms, umbralBajo, umbralAlto):
+    alto, ancho = imagenNms.shape
+    salida = np.zeros((alto, ancho), dtype=np.uint8)
+
+    bordeDebil = 75
+    bordeFuerte = 255
+
+    for fila in range(alto):
+        for columna in range(ancho):
+            valor = imagenNms[fila, columna]
+
+            if valor >= umbralAlto:
+                salida[fila, columna] = bordeFuerte
+
+            elif valor >= umbralBajo:
+                salida[fila, columna] = bordeDebil
+
+            else:
+                salida[fila, columna] = 0
+
+    return salida
 
 
-def SuavizarCanal(canal, metodo="gaussiano_3x3"):
-    return aplicarConvolucion(canal, metodo)
+def HisteresisCanny(imagenUmbralizada):
+    alto, ancho = imagenUmbralizada.shape
+
+    bordeDebil = 75
+    bordeFuerte = 255
+
+    salida = imagenUmbralizada.copy()
+
+    for fila in range(1, alto - 1):
+        for columna in range(1, ancho - 1):
+
+            if salida[fila, columna] == bordeDebil:
+
+                ventana = salida[fila - 1:fila + 2, columna - 1:columna + 2]
+
+                if np.any(ventana == bordeFuerte):
+                    salida[fila, columna] = bordeFuerte
+                else:
+                    salida[fila, columna] = 0
+
+    return salida
 
 
+def AplicarCanny(img, umbralBajo=50, umbralAlto=120):
+    resultadoSobel = AplicarSobelAImagen(
+        img,
+        suavizar=True,
+        metodoSuavizado="gaussiano_5x5"
+    )
+
+    magnitud = resultadoSobel["sobelUnido"]
+    direccion = resultadoSobel["direccionGrados"]
+
+    direccionDiscretizada = DiscretizarDireccionCanny(direccion)
+    bordesDelgados = SupresionNoMaximos(magnitud, direccionDiscretizada)
+    bordesUmbralizados = DobleUmbralCanny(bordesDelgados, umbralBajo, umbralAlto)
+    bordesFinales = HisteresisCanny(bordesUmbralizados)
+
+    return {
+        "magnitud": magnitud,
+        "direccion": direccion,
+        "direccionDiscretizada": direccionDiscretizada,
+        "bordesDelgados": bordesDelgados,
+        "bordesUmbralizados": bordesUmbralizados,
+        "bordesFinales": bordesFinales
+    }
+
+
+# endregion
+
+# region Segmentacion de la papa
 def DistanciaEuclidianaRGB(imagen, colorRgb):
     # Esta función convierte la imagen a flotante, organiza el color como vector compatible y calcula la distancia por píxel.
     imagenEnFlotante = imagen.astype(np.float32)  # Convierto la imagen a flotante para operar con precisión.
@@ -310,21 +423,122 @@ def CalcularRangoRGB(imagen):
     return rangoPorPixel  # Asi se si son pixeles grises, saturado o con colores intensos
 
 
-def BinarizarNoFondo(imagen, umbralBlanco=60, umbralNegro=45, umbralRango=18):
-    # Esta función compara cada píxel con blanco y negro, y además evalúa la variación entre canales para detectar objeto.
+def CalcularColorFondoPorBordes(imagen, tamanoBorde=10, pasoCuantizacion=16):
+    # Esta función estima el color del fondo usando los bordes de la imagen.
+    # La idea es que normalmente el fondo toca los bordes, mientras que la papa suele estar más al centro.
+    alto, ancho, _ = imagen.shape
 
-    # Calculo la distancia de cada píxel al color blanco y negro
+    # Tomo franjas de arriba, abajo, izquierda y derecha.
+    bordeArriba = imagen[0:tamanoBorde, :, :]
+    bordeAbajo = imagen[alto - tamanoBorde:alto, :, :]
+    bordeIzquierda = imagen[:, 0:tamanoBorde, :]
+    bordeDerecha = imagen[:, ancho - tamanoBorde:ancho, :]
+
+    # Uno todos los píxeles de borde en una sola matriz.
+    pixelesBorde = np.concatenate((
+        bordeArriba.reshape(-1, 3),
+        bordeAbajo.reshape(-1, 3),
+        bordeIzquierda.reshape(-1, 3),
+        bordeDerecha.reshape(-1, 3)
+    ), axis=0).astype(np.float32)
+
+    # Cuantizo colores para agrupar tonos parecidos.
+    # Por ejemplo, varios azules cielo cercanos caen en el mismo grupo.
+    pixelesCuantizados = (pixelesBorde // pasoCuantizacion).astype(np.int32)
+
+    # Busco el grupo de color que más se repite en los bordes.
+    coloresUnicos, conteos = np.unique(pixelesCuantizados, axis=0, return_counts=True)
+    indiceMasFrecuente = np.argmax(conteos)
+
+    colorCuantizadoDominante = coloresUnicos[indiceMasFrecuente]
+
+    # Recupero los píxeles reales que pertenecen a ese grupo dominante.
+    mascaraGrupoDominante = np.all(pixelesCuantizados == colorCuantizadoDominante, axis=1)
+    pixelesDominantes = pixelesBorde[mascaraGrupoDominante]
+
+    # Calculo el color promedio real del fondo.
+    colorFondo = np.mean(pixelesDominantes, axis=0)
+
+    # Calculo qué porcentaje del borde pertenece al color dominante.
+    proporcionDominante = conteos[indiceMasFrecuente] / len(pixelesBorde)
+
+    return colorFondo, proporcionDominante
+
+
+def BinarizarNoFondo(imagen, umbralFondo=42, umbralBlanco=32, umbralNegro=25, umbralRango=10):
+    imagenFloat = imagen.astype(np.float32)
+
+    canalR = imagenFloat[:, :, 0]
+    canalG = imagenFloat[:, :, 1]
+    canalB = imagenFloat[:, :, 2]
+
+    # Calculo intensidad y variación de color.
+    intensidad = ConvertirAGrises(imagen)
+    rangoDeCanales = CalcularRangoRGB(imagen)
+
+    # Calculo distancia a blanco, negro y al fondo estimado por bordes.
     distanciaAlBlanco = DistanciaEuclidianaRGB(imagen, (255, 255, 255))
     distanciaAlNegro = DistanciaEuclidianaRGB(imagen, (0, 0, 0))
 
-    rangoDeCanales = CalcularRangoRGB(imagen)  # Calculo el rango entre canales RGB para cada píxel.
+    colorFondo, proporcionFondoEnBordes = CalcularColorFondoPorBordes(imagen)
+    distanciaAlFondoEstimado = DistanciaEuclidianaRGB(imagen, colorFondo)
 
-    # Construyo la máscara que identifica los píxeles que no pertenecen al fondo.
-    # Primero valido y marco los píxeles alejados tanto del blanco como del negro.
-    mascaraNoFondo = (((distanciaAlBlanco > umbralBlanco) & (distanciaAlNegro > umbralNegro))
-                      | (rangoDeCanales > umbralRango))  # Luego lo hago píxeles con enough variación entre canales
+    # Fondo blanco o casi blanco.
+    noEsBlanco = distanciaAlBlanco > umbralBlanco
 
-    return mascaraNoFondo.astype(np.uint8)  # Convierto la máscara booleana a enteros 0 y 1.
+    # Fondo negro o zonas extremadamente negras externas.
+    noEsNegro = distanciaAlNegro > umbralNegro
+
+    # Fondo estimado por los bordes.
+    # Solo confío fuerte en este fondo si domina una parte razonable de los bordes.
+    if proporcionFondoEnBordes >= 0.18:
+        noEsFondoEstimado = distanciaAlFondoEstimado > umbralFondo
+    else:
+        # Si los bordes no tienen un color estable, no uso esta regla porque podría estar mirando papa.
+        noEsFondoEstimado = np.ones_like(intensidad, dtype=bool)
+
+    # Regla de color tipo papa: amarillos, cafés y rojizos.
+    dominaColorPapa = (
+            ((canalR > canalB + 8) | (canalG > canalB + 8))
+            & (canalR > 45)
+            & (canalG > 35)
+    )
+
+    # También acepto zonas internas claras de papa partida.
+    # Esto evita botar la pulpa blanca como si fuera fondo.
+    pulpaClaraPapa = (
+            (intensidad > 115)
+            & (intensidad < 245)
+            & (canalR >= canalB - 5)
+            & (canalG >= canalB - 5)
+    )
+
+    # Acepto zonas muy oscuras solo si están dentro de una región que luego podrá cerrarse.
+    # Esto ayuda a no perder moho negro o pie negro.
+    posibleLesionNegra = (
+            (intensidad < 85)
+            & ((canalR > canalB + 5) | (canalG > canalB + 5) | (rangoDeCanales > 18))
+    )
+
+    # Evito colores típicos de fondo azul/celeste.
+    fondoAzulado = (
+            (canalB > canalR + 18)
+            & (canalB > canalG + 8)
+    )
+
+    # Evito zonas demasiado extremas.
+    intensidadValida = (intensidad > 18) & (intensidad < 250)
+
+    mascaraNoFondo = (
+            noEsBlanco
+            & noEsNegro
+            & noEsFondoEstimado
+            & intensidadValida
+            & (~fondoAzulado)
+            & (dominaColorPapa | pulpaClaraPapa | posibleLesionNegra | (rangoDeCanales > umbralRango))
+    )
+
+    return mascaraNoFondo.astype(np.uint8)
 
 
 # Aplico una de las operaciones morfologicas que me explico el profesor (DILATACIÓN) que expande los píxeles blancos (activos = 1)
@@ -473,17 +687,99 @@ def FiltrarComponentesPequenos(mascara, areaMinima=300):
     return mascaraFiltrada, componentesValidos
 
 
+def RellenarHuecosBinaria(mascara):
+    # Esta función rellena huecos internos dentro de la máscara de la papa.
+    # Sirve para que lesiones negras, moho negro o partes muy oscuras no queden marcadas como fondo.
+    altoMascara, anchoMascara = mascara.shape
+
+    # Creo una máscara para marcar el fondo que está conectado con los bordes de la imagen.
+    fondoConectadoAlBorde = np.zeros_like(mascara, dtype=np.uint8)
+
+    # Creo la pila donde guardaré los píxeles de fondo pendientes por visitar.
+    pilaPixelesPendientes = []
+
+    # Recorro la primera y última fila para encontrar fondo conectado al borde.
+    for columna in range(anchoMascara):
+        if mascara[0, columna] == 0:
+            pilaPixelesPendientes.append((0, columna))
+            fondoConectadoAlBorde[0, columna] = 1
+
+        if mascara[altoMascara - 1, columna] == 0:
+            pilaPixelesPendientes.append((altoMascara - 1, columna))
+            fondoConectadoAlBorde[altoMascara - 1, columna] = 1
+
+    # Recorro la primera y última columna para encontrar fondo conectado al borde.
+    for fila in range(altoMascara):
+        if mascara[fila, 0] == 0:
+            pilaPixelesPendientes.append((fila, 0))
+            fondoConectadoAlBorde[fila, 0] = 1
+
+        if mascara[fila, anchoMascara - 1] == 0:
+            pilaPixelesPendientes.append((fila, anchoMascara - 1))
+            fondoConectadoAlBorde[fila, anchoMascara - 1] = 1
+
+    # Defino los vecinos en 4 direcciones para expandir el fondo externo.
+    vecinos = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+    # Expando el fondo desde los bordes hacia adentro.
+    while pilaPixelesPendientes:
+        filaActual, columnaActual = pilaPixelesPendientes.pop()
+
+        for desplazamientoFila, desplazamientoColumna in vecinos:
+            filaVecina = filaActual + desplazamientoFila
+            columnaVecina = columnaActual + desplazamientoColumna
+
+            if 0 <= filaVecina < altoMascara and 0 <= columnaVecina < anchoMascara:
+                if mascara[filaVecina, columnaVecina] == 0 and fondoConectadoAlBorde[filaVecina, columnaVecina] == 0:
+                    fondoConectadoAlBorde[filaVecina, columnaVecina] = 1
+                    pilaPixelesPendientes.append((filaVecina, columnaVecina))
+
+    # Todo cero que no esté conectado al borde se considera hueco interno.
+    huecosInternos = (mascara == 0) & (fondoConectadoAlBorde == 0)
+
+    # Copio la máscara original y relleno esos huecos.
+    mascaraRellena = mascara.copy()
+    mascaraRellena[huecosInternos] = 1
+
+    return mascaraRellena
+
+
 def SegmentarPapas(imagen):
-    # Separo las regiones que corresponden a las papas
-    mascaraPapas = BinarizarNoFondo(imagen)  # Genero una máscara inicial con las regiones que no son fondo.
-    mascaraPapas = AbrirBinaria(mascaraPapas, 3)  # Aplico apertura para eliminar pequeños ruidos.
-    mascaraPapas = CerrarBinaria(mascaraPapas, 5)  # Aplico cierre para rellenar huecos pequeños dentro de las papas.
-    mascaraPapas, componentesPapa = FiltrarComponentesPequenos(mascaraPapas,
-                                                               300)  # Conservo solo las componentes con tamaño suficiente.
+    # Separo las regiones que corresponden a las papas.
+    mascaraPapas = BinarizarNoFondo(imagen)
+
+    # Limpio ruido pequeño antes de rellenar huecos.
+    mascaraPapas = AbrirBinaria(mascaraPapas, 3)
+
+    # Cierro partes cercanas de la papa.
+    mascaraPapas = CerrarBinaria(mascaraPapas, 5)
+
+    # Relleno huecos internos para no perder moho negro, pie negro o pudriciones oscuras.
+    mascaraPapas = RellenarHuecosBinaria(mascaraPapas)
+
+    # Vuelvo a limpiar suavemente.
+    mascaraPapas = AbrirBinaria(mascaraPapas, 3)
+
+    # Si la máscara ocupa casi toda la imagen, probablemente agarró fondo.
+    # En ese caso subo la exigencia usando solo componentes conectados razonables.
+    areaImagen = mascaraPapas.shape[0] * mascaraPapas.shape[1]
+    areaMascara = np.sum(mascaraPapas == 1)
+
+    if areaMascara > areaImagen * 0.88:
+        mascaraPapas = BinarizarNoFondo(imagen, umbralFondo=55, umbralBlanco=28, umbralNegro=20, umbralRango=16)
+        mascaraPapas = AbrirBinaria(mascaraPapas, 3)
+        mascaraPapas = CerrarBinaria(mascaraPapas, 5)
+        mascaraPapas = RellenarHuecosBinaria(mascaraPapas)
+
+    # Conservo solo componentes suficientemente grandes.
+    mascaraPapas, componentesPapa = FiltrarComponentesPequenos(mascaraPapas, 300)
 
     return mascaraPapas, componentesPapa
 
 
+# endregion
+
+# region Detectar lesiones de la papa
 def ObtenerMascaraComponente(componente, dimensionesMascara):
     # Esta función toma la lista de píxeles del componente y genera una máscara del mismo tamaño que la imagen original.
     mascaraComponente = np.zeros(dimensionesMascara, dtype=np.uint8)  # Creo una máscara vacía del tamaño solicitado.
@@ -495,38 +791,28 @@ def ObtenerMascaraComponente(componente, dimensionesMascara):
     return mascaraComponente  # Retorno la máscara del componente individual.
 
 
-def CalcularPromedioRGBEnMascara(imagen, mascara):
-    # Aquí selecciono los píxeles activos de la máscara y calcula el promedio por canal.
-    # Primero xtraigo todos los píxeles de la imagen donde la máscara está activa.
-    pixelesDentroDeLaMascara = imagen[mascara == 1]
-
-    if len(pixelesDentroDeLaMascara) == 0:  # Verifico si no hay píxeles activos dentro de la máscara.
-        return np.array([0.0, 0.0, 0.0], dtype=np.float32)  # Retorno un vector negro si la máscara está vacía.
-
-    # Calculo el promedio RGB de los píxeles seleccionados.
-    promedioPorCanal = np.mean(pixelesDentroDeLaMascara.astype(np.float32), axis=0)
-
-    return promedioPorCanal  # Retorno el color promedio calculado.
-
-
-# Mido la oscuridad relativa de cada píxel respecto al color promedio de la papa.
+# Mido la oscuridad relativa de cada píxel respecto a la intensidad promedio de la papa.
 def CalcularMapaOscuridadRelativa(imagen, mascaraPapa):
-    # Primer calculo el color promedio RGB de la papa segmentada.
-    promedioRgbPapa = CalcularPromedioRGBEnMascara(imagen, mascaraPapa)
+    # Primero convierto la imagen RGB a escala de grises usando ponderación de luminancia
+    # Esto representa mejor la intensidad visual que un promedio simple entre R, G y B
+    # promedioRgbPapa = CalcularPromedioRGBEnMascara(imagen, mascaraPapa) #YA NO USO ESTA PORQUE ESTA TOMA RGB/3 Y NO SON IGUALES
+    imagenGris = ConvertirAGrises(imagen)
 
-    # Luego convierto el promedio RGB a un solo valor de gris representativo.
-    promedioGrisPapa = np.mean(promedioRgbPapa)
+    # Extraigo únicamente los píxeles que pertenecen a la papa según la máscara
+    pixelesPapa = imagenGris[mascaraPapa == 1]
 
-    # Seguido convierto la imagen a flotante para evitar problemas en las operaciones.
-    imagenEnFlotante = imagen.astype(np.float32)
+    # Si la máscara está vacía, retorno un mapa de ceros para evitar errores.
+    if len(pixelesPapa) == 0:
+        return np.zeros_like(imagenGris, dtype=np.float32)
 
-    # luego calculo el valor medio entre canales para cada píxel.
-    intensidadGrisPorPixel = np.mean(imagenEnFlotante, axis=2)
+    # Calculo la intensidad promedio de la papa en escala de grises.
+    promedioGrisPapa = np.mean(pixelesPapa)
 
-    # luego calculo cuánto más oscuro es cada píxel respecto al promedio.
-    mapaOscuridadRelativa = promedioGrisPapa - intensidadGrisPorPixel
+    # Calculo cuánto más oscuro es cada píxel respecto al promedio de la papa.
+    # Si el resultado es positivo, el píxel es más oscuro que el promedio.
+    mapaOscuridadRelativa = promedioGrisPapa - imagenGris
 
-    # Por ultimo Anulo la información fuera de la región segmentada de la papa.
+    # Anulo la información fuera de la región segmentada de la papa.
     mapaOscuridadRelativa[mascaraPapa == 0] = 0
 
     return mapaOscuridadRelativa  # Retorno el mapa de oscuridad relativa.
@@ -540,25 +826,94 @@ def CalcularMapaRangoDentroPapa(imagen, mascaraPapa):
     return mapaRangoRgb  # Retorno el mapa de rango restringido a la papa.
 
 
-def CalcularMapaDiferenciaCanales(imagen, mascaraPapa):
-    # calculo la separación entre el canal máximo y el mínimo en cada píxel y anula el exterior de la papa.
-    imagenEnFlotante = imagen.astype(np.float32)  # Convierto la imagen a flotante para operar con precisión.
-    canalRojo = imagenEnFlotante[:, :, 0]  # Extraigo el canal rojo.
-    canalVerde = imagenEnFlotante[:, :, 1]  # Extraigo el canal verde.
-    canalAzul = imagenEnFlotante[:, :, 2]  # Extraigo el canal azul.
+def CalcularMapaContrasteLocalOscuro(imagen):
+    gris = ConvertirAGrises(imagen)
+    grisSuavizado = aplicarConvolucion(gris, "promedio_5x5")
 
-    # Obtengo el valor máximo y minimo entre los tres canales para cada píxel.
-    valorMaximoEntreCanales = np.maximum(np.maximum(canalRojo, canalVerde), canalAzul)
-    valorMinimoEntreCanales = np.minimum(np.minimum(canalRojo, canalVerde), canalAzul)
+    contrasteOscuro = grisSuavizado - gris
+    contrasteOscuro[contrasteOscuro < 0] = 0
 
-    # Calculo la diferencia entre el canal máximo y el mínimo.
-    mapaDiferenciaCanales = valorMaximoEntreCanales - valorMinimoEntreCanales
-
-    mapaDiferenciaCanales[mascaraPapa == 0] = 0  # Coloco en cero los píxeles que están fuera de la papa.
-
-    return mapaDiferenciaCanales
+    return contrasteOscuro
 
 
+def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=42, umbralOscuridadSuave=28,
+                            umbralVariacionColor=22, umbralContrasteLocal=6, areaMinima=10):
+    # Esta función detecta lesiones oscuras dentro de la papa.
+    # Ahora es más estricta para evitar confundir sombras suaves con enfermedades.
+
+    imagenGris = ConvertirAGrises(imagen)
+
+    # Trabajo dentro de la papa, pero sin erosionar demasiado porque algunas lesiones están cerca del borde.
+    mascaraPapaInterna = ErosionarBinaria(mascaraPapa, 3)
+
+    # Si la erosión destruye gran parte de la papa, recupero la máscara original.
+    if np.sum(mascaraPapaInterna == 1) < np.sum(mascaraPapa == 1) * 0.55:
+        mascaraPapaInterna = mascaraPapa.copy()
+
+    pixelesPapa = imagenGris[mascaraPapaInterna == 1]
+
+    if len(pixelesPapa) == 0:
+        return np.zeros_like(mascaraPapa, dtype=np.uint8), []
+
+    # Uso percentil alto como referencia para comparar contra zonas sanas iluminadas.
+    # Esto ayuda a no tomar una sombra grande como si fuera la intensidad normal de la papa.
+    intensidadReferencia = np.percentile(pixelesPapa, 70)
+
+    mapaOscuridadRelativa = intensidadReferencia - imagenGris
+    mapaOscuridadRelativa[mascaraPapaInterna == 0] = 0
+
+    mapaVariacionColor = CalcularMapaRangoDentroPapa(imagen, mascaraPapaInterna)
+    mapaContrasteLocal = CalcularMapaContrasteLocalOscuro(imagen)
+
+    r = imagen[:, :, 0].astype(np.float32)
+    g = imagen[:, :, 1].astype(np.float32)
+    b = imagen[:, :, 2].astype(np.float32)
+
+    # Regla 1: lesiones negras reales.
+    # Esta regla rescata moho negro y pie negro, incluso cuando la segmentación original los veía como fondo.
+    reglaNegraReal = (
+            (imagenGris < 80)
+            & (mapaOscuridadRelativa > 30)
+    )
+
+    # Regla 2: lesiones marrones oscuras con contraste local.
+    # Exijo contraste local para no agarrar sombras suaves entre papas.
+    reglaMarronConContraste = (
+            (mapaOscuridadRelativa > umbralOscuridadSuave)
+            & (mapaVariacionColor > umbralVariacionColor)
+            & (mapaContrasteLocal > umbralContrasteLocal)
+            & (imagenGris < 150)
+            & (r > b + 10)
+    )
+
+    # Regla 3: pudrición oscura o húmeda.
+    # Exijo oscuridad fuerte y que no sea una zona simplemente amarilla sombreada.
+    reglaPudricionOscura = (
+            (mapaOscuridadRelativa > umbralOscuridadFuerte)
+            & (mapaContrasteLocal > umbralContrasteLocal)
+            & (imagenGris < 135)
+    )
+
+    mascaraLesiones = (
+            (mascaraPapaInterna == 1)
+            & (reglaNegraReal | reglaMarronConContraste | reglaPudricionOscura)
+    ).astype(np.uint8)
+
+    # Cierro huecos pequeños dentro de lesiones reales.
+    mascaraLesiones = CerrarBinaria(mascaraLesiones, 3)
+
+    # Elimino ruido pequeño.
+    mascaraLesiones, componentesLesion = FiltrarComponentesPequenos(
+        mascaraLesiones,
+        areaMinima=areaMinima
+    )
+
+    return mascaraLesiones, componentesLesion
+
+
+# endregion
+
+# region Trabajo de boundig boxes
 def ExpandirCajaDelimitadora(cajaDelimitadora, margen, altoImagen, anchoImagen):
     # Agrega un margen alrededor de una caja y la recorta para mantenerla dentro del tamaño válido
     filaMinima, columnaMinima, filaMaxima, columnaMaxima = cajaDelimitadora  # Descompongo la caja delimitadora en sus cuatro coordenadas
@@ -670,79 +1025,7 @@ def UnirComponentesCercanos(componentes, dimensionesImagen, margen=6, areaMinima
     return componentesFinales
 
 
-def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbralOscuridadSuave=20, umbralRango=18,
-                            umbralDifCanales=22, areaMinima=12):
-    """
-    Detecta lesiones usando dos reglas:
-    1) oscuridad fuerte
-    2) oscuridad moderada + diferencia entre canales alta
-
-    Esto ayuda a no perder costra comun y moho negro.
-    """
-
-    mapaOscuridad = CalcularMapaOscuridadRelativa(imagen, mascaraPapa)
-    mapaRango = CalcularMapaRangoDentroPapa(imagen, mascaraPapa)
-    mapaDifCanales = CalcularMapaDiferenciaCanales(imagen, mascaraPapa)
-
-    regla1 = (mapaOscuridad > umbralOscuridadFuerte)
-
-    regla2 = (
-            (mapaOscuridad > umbralOscuridadSuave) &
-            (mapaRango > umbralRango) &
-            (mapaDifCanales > umbralDifCanales)
-    )
-
-    mascaraLesion = (
-            (mascaraPapa == 1) &
-            (regla1 | regla2)
-    ).astype(np.uint8)
-
-    mascaraLesion = AbrirBinaria(mascaraLesion, 3)
-    mascaraLesion = CerrarBinaria(mascaraLesion, 5)
-
-    mascaraLesion, componentes = FiltrarComponentesPequenos(
-        mascaraLesion,
-        areaMinima=areaMinima
-    )
-
-    return mascaraLesion, componentes
-
-
-def DetectarLesionesOscuras(imagen, mascaraPapa, umbralOscuridadFuerte=30, umbralOscuridadSuave=20, umbralRango=18,
-                            umbralDiferenciaCanales=22, areaMinima=12):
-    # Aqui combino las reglas de oscuridad y variación cromática para construir una máscara de lesiones y filtrar ruido pequeño
-
-    # 1. calculo el mapa de oscuridad relativa dentro de la papa para detectar enfermedades que oscurecen la papa
-    mapaOscuridadRelativa = CalcularMapaOscuridadRelativa(imagen, mascaraPapa)
-
-    # 2. Calculo el mapa de rango entre canales dentro de la papa
-    mapaRangoRgb = CalcularMapaRangoDentroPapa(imagen, mascaraPapa)
-
-    # 3. calculo el mapa de diferencia entre canales dentro de la papa
-    mapaDiferenciaCanales = CalcularMapaDiferenciaCanales(imagen, mascaraPapa)
-
-    cumpleReglaOscuridadFuerte = mapaOscuridadRelativa > umbralOscuridadFuerte  # 4. Marco píxeles con oscuridad fuerte
-
-    # 5. Construyo la segunda regla para oscuridad moderada acompañada de variación cromática, exijo que exista oscuridad moderada
-    cumpleReglaOscuridadModeradaConVariacion = ((mapaOscuridadRelativa > umbralOscuridadSuave)
-                                                & (mapaRangoRgb > umbralRango)  # exijo suficiente rango entre canales
-                                                & (mapaDiferenciaCanales > umbralDiferenciaCanales)
-                                                # exijo suficiente diferencia global entre canales
-                                                )
-
-    # 6. Construyo la máscara final de lesiones candidatas
-    mascaraLesiones = ((mascaraPapa == 1)  # Restrinjo la detección al interior de la papa
-                       & (cumpleReglaOscuridadFuerte | cumpleReglaOscuridadModeradaConVariacion)
-                       # Acepto píxeles que cumplan cualquiera de las dos reglas
-                       ).astype(np.uint8)  # Convierto la máscara booleana a enteros 0 y 1
-
-    mascaraLesiones = AbrirBinaria(mascaraLesiones, 3)  # 8. Aplico apertura para eliminar pequeños falsos positivos
-    mascaraLesiones = CerrarBinaria(mascaraLesiones, 5)  # 9. Aplico cierre para consolidar regiones de lesión
-
-    # 10. Elimino regiones demasiado pequeñas de la máscara de lesión
-    mascaraLesiones, componentesLesion = FiltrarComponentesPequenos(mascaraLesiones, areaMinima=areaMinima)
-
-    return mascaraLesiones, componentesLesion
+# endregion
 
 
 def DetectarLesionesEnImagen(imagen):
@@ -760,12 +1043,15 @@ def DetectarLesionesEnImagen(imagen):
         mascaraPapaIndividual = ObtenerMascaraComponente(componentePapaActual, (altoImagen, anchoImagen))
 
         # Detecto lesiones dentro de la papa actual.
-        mascaraLesionActual, componentesLesionActuales = DetectarLesionesOscuras(imagen, mascaraPapaIndividual,
-                                                                                 umbralOscuridadFuerte=30,
-                                                                                 umbralOscuridadSuave=18,
-                                                                                 umbralRango=16,
-                                                                                 umbralDiferenciaCanales=20,
-                                                                                 areaMinima=10)
+        mascaraLesionActual, componentesLesionActuales = DetectarLesionesOscuras(
+            imagen,
+            mascaraPapaIndividual,
+            umbralOscuridadFuerte=42,
+            umbralOscuridadSuave=28,
+            umbralVariacionColor=22,
+            umbralContrasteLocal=6,
+            areaMinima=10
+        )
 
         # Acumulo la máscara de lesiones usando el máximo píxel a píxel.
         mascaraLesionesTotal = np.maximum(mascaraLesionesTotal, mascaraLesionActual)
@@ -774,7 +1060,7 @@ def DetectarLesionesEnImagen(imagen):
             componentesLesionTotales.append(componenteLesionActual)  # Agrego la lesión a la lista global de lesiones.
 
     # Uno componentes de lesión cercanos para obtener cajas más limpias.
-    componentesLesionTotales = UnirComponentesCercanos(componentesLesionTotales, (altoImagen, anchoImagen), margen=7,
-                                                       areaMinimaFinal=35)
+    componentesLesionTotales = UnirComponentesCercanos(componentesLesionTotales, (altoImagen, anchoImagen), margen=6,
+                                                       areaMinimaFinal=18)
 
     return mascaraPapas, componentesPapa, mascaraLesionesTotal, componentesLesionTotales  # Retorno las máscaras y listas de componentes generadas por el pipeline.
