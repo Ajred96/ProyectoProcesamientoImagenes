@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from funciones import DetectarLesionesEnImagen, SegmentarPapas
+from funciones import DetectarLesionesEnImagen, SegmentarPapas, BinarizarNoFondo, AbrirBinaria, CerrarBinaria
 
 RUTA_DATASET = "dataset"
 TAMANO_IMAGEN = (128, 128)
@@ -241,8 +241,60 @@ def ContarImagenesPorClase():
     print(f"\nTOTAL DATASET: {totalImagenes} imágenes")
 
 
+def MostrarProcesoMorfologico(rutaImagen):
+    img = CargarImagen(rutaImagen)
+
+    # 1. Mascara inicial
+    mascaraInicial = BinarizarNoFondo(img)
+
+    # 2. Apertura
+    mascaraAntesApertura = mascaraInicial.copy()
+    mascaraDespuesApertura = AbrirBinaria(mascaraAntesApertura, 3)
+
+    # 3. Cierre
+    mascaraAntesCierre = mascaraDespuesApertura.copy()
+    mascaraDespuesCierre = CerrarBinaria(mascaraAntesCierre, 5)
+
+    # Mostrar resultados
+    plt.figure(figsize=(20, 4))
+
+    plt.subplot(1, 5, 1)
+    plt.imshow(mascaraInicial, cmap="gray")
+    plt.title("Mascara inicial")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 2)
+    plt.imshow(mascaraAntesApertura, cmap="gray")
+    plt.title("Antes apertura")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 3)
+    plt.imshow(mascaraDespuesApertura, cmap="gray")
+    plt.title("Despues apertura")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 4)
+    plt.imshow(mascaraAntesCierre, cmap="gray")
+    plt.title("Antes cierre")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 5)
+    plt.imshow(mascaraDespuesCierre, cmap="gray")
+    plt.title("Despues cierre")
+    plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     ContarImagenesPorClase()
+
+    # ruta = os.path.join("dataset", "Costra_comun",
+    #                     os.listdir(os.path.join("dataset", "Costra_comun"))[0])
+    #
+    # MostrarProcesoMorfologico(ruta)
+
     ruta = os.path.join("dataset", "Costra_comun", os.listdir(os.path.join("dataset", "Costra_comun"))[0])
     ruta2 = os.path.join("dataset", "Papas_saludables", os.listdir(os.path.join("dataset", "Papas_saludables"))[0])
     ruta3 = os.path.join("dataset", "Moho_negro", os.listdir(os.path.join("dataset", "Moho_negro"))[0])
