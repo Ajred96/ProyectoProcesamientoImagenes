@@ -155,3 +155,107 @@ def filter(image, kernel):
             output[i, j] = np.sum(np.multiply(region, kernel))
 
     return output
+
+
+def normalize_sobel_angles(direction):
+    """
+    Normaliza los ángulos de la matríz dirección de sobel de a una serie de rangos
+    """
+    direction[(direction >= -22.5) & (direction <= 22.5)] = 0
+
+    direction[
+        ((direction >= 22.5) & (direction <= 67.5))
+        | ((direction >= -157.5) & (direction <= -112.5))
+    ] = 45
+
+    direction[
+        ((direction >= 67.5) & (direction <= 112.5))
+        | ((direction >= -112.5) & (direction <= -67.5))
+    ] = 90
+
+    direction[
+        ((direction >= 112.5) & (direction <= 157.5))
+        | ((direction >= -67.5) & (direction <= -22.5))
+    ] = 135
+
+    return direction
+
+
+def supress_non_maximums(magnitude: np.ndarray, direction: np.ndarray):
+    """
+    Suprime a cero (0) las magnitudes que no sean mayores a sus magnitudes vecinas acordes a la dirección
+    """
+    height, width = magnitude.shape
+
+    output = magnitude.copy()
+
+    for i in range(1, height - 1):
+        for j in range(1, width - 1):
+            if direction[i][j] == 0:
+                if (magnitude[i][j] < magnitude[i][j - 1]) or (
+                    magnitude[i][j] < magnitude[i][j + 1]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 45:
+                if (magnitude[i][j] < magnitude[i - 1][j + 1]) or (
+                    magnitude[i][j] < magnitude[i + 1][j - 1]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 90:
+                if (magnitude[i][j] < magnitude[i - 1][j]) or (
+                    magnitude[i][j] < magnitude[i + 1][j]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 135:
+                if (magnitude[i][j] < magnitude[i - 1][j - 1]) or (
+                    magnitude[i][j] < magnitude[i + 1][j + 1]
+                ):
+                    output[i][j] = 0
+
+    return output
+
+
+def canny(supressed_magnitude, low_threshold=5, high_threshold=10):
+    """
+    Aplica el algoritmo de Canny a partir de una matriz de magnitudes suprimida
+    """
+    height, width = supressed_magnitude.shape
+
+    output = np.zeros((height, width), dtype=np.uint8)
+
+    # Valores de Canny
+    strong = 255
+    weak = 75
+
+    # Clasificación inicial
+    for i in range(height):
+        for j in range(width):
+            value = supressed_magnitude[i][j]
+
+            if value < low_threshold:
+                output[i][j] = 0
+
+            elif value >= high_threshold:
+                output[i][j] = strong
+
+            else:
+                output[i][j] = weak
+
+    # Seguimiento por histéresis
+    for i in range(1, height - 1):
+        for j in range(1, width - 1):
+
+            if output[i][j] == weak:
+
+                # Revisar vecindad 8-conectada
+                neighborhood = output[i - 1 : i + 2, j - 1 : j + 2]
+
+                if np.any(neighborhood == strong):
+                    output[i][j] = strong
+                else:
+                    output[i][j] = 0
+
+    return output
