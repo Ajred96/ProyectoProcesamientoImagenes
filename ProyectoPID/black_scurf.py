@@ -62,12 +62,14 @@ def detect_black_scurf(image, chroma_threshold=0.3, closing_radius=3, use_filter
 
     # Remover el fondo blanco
     mask_potato = yuv < 0.95
-    potato_area = np.sum(mask_potato)
+
+    # De la máscara de la papa nos quedamos solo con las partes oscuras
     detected_mask = mask_dark & mask_potato
     clean_mask = binary_closing(detected_mask, footprint_disk(closing_radius))
-    disease_area = np.sum(clean_mask)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
+    disease_area = np.sum(clean_mask)
+    potato_area = np.sum(mask_potato)
     disease_ratio = disease_area / potato_area
 
     # Etiquetar las regiones conexas para dibujar las cajas delimitadoras
