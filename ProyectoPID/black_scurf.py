@@ -104,7 +104,6 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
     if disease_ratio >= 0.03:
         status = "Enferma"
 
-    # print(f"Ratio de la Enfermedad: {disease_ratio:.2%}")
     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
 
     axs[0].imshow(original_image)
@@ -161,16 +160,18 @@ if __name__ == "__main__":
     process_all = False
     use_filter = False
 
-    #
     if single:
+        # Procesa una única imagen determinada por SINGLE_PATH
         image = Image.open(SINGLE_PATH)
         graph_black_scurf_results(image, use_filter=use_filter)
     elif process_all:
+        # Procesa todas las papas del dataset
         for potato in BLACK_SCURF_PATH.iterdir():
             image = Image.open(potato)
             graph_black_scurf_results(image, use_filter=use_filter)
     else:
-        QUANTITY = 5
+        # Procesa un número (QUANTITY) de papas, elegidas al azar
+        QUANTITY = 3
         BLACK_SCURF_IMAGES = []
 
         for potato in BLACK_SCURF_PATH.iterdir():
