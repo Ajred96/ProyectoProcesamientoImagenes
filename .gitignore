@@ -3,3 +3,5 @@ ProyectoPID/.venv/
 ProyectoPID/__pycache__/
 ProyectoPID/img/
 ProyectoPID/test/
+ProyectoPID/venv/Lib/site-packages/fontTools/annotations.py
+ProyectoPID/venv/

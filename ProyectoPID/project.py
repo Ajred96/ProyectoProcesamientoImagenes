@@ -33,9 +33,8 @@ def dataset_processing():
             .strip()
         )
 
-        match process_folder:
+        if process_folder == "1":
             # Caso 1: Moho Negro
-            case "1":
                 graph_result = (
                     input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
                 )
@@ -63,102 +62,102 @@ def dataset_processing():
 
                 print(f"Cantidad de Papas Sanas: {healthy_count}")
                 print(f"Cantidad de Papas afectadas por Moho Negro: {diseased_count}")
-                print(f"Porcentaje (%) de Acierto: {(diseased_count / file_count):.2%}")
+                print(f"Porcentaje de Imágenes Clasificadas como Enfermas: {(diseased_count / file_count):.2%}")
                 break
-            # Caso 2: Pie Negro
-            case "2":
-                graph_result = (
-                    input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
-                )
-                graph_result = True if graph_result == "s" else False
-                PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
-                file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
-                healthy_count = 0
-                diseased_count = 0
-                print(file_count)
-                for potato in PATH.iterdir():
-                    image = Image.open(potato)
-                    _, _, _, _, disease_ratio = detect_blackleg(image)
-                    if disease_ratio >= 0.12:
-                        status = "enferma"
-                        diseased_count += 1
-                    else:
-                        status = "sana"
-                        healthy_count += 1
+        # Caso 2: Pie Negro
+        elif process_folder == "2":
+            graph_result = (
+                input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
+            )
+            graph_result = True if graph_result == "s" else False
+            PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
+            file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
+            healthy_count = 0
+            diseased_count = 0
+            print(file_count)
+            for potato in PATH.iterdir():
+                image = Image.open(potato)
+                _, _, _, _, disease_ratio = detect_blackleg(image)
+                if disease_ratio >= 0.12:
+                    status = "enferma"
+                    diseased_count += 1
+                else:
+                    status = "sana"
+                    healthy_count += 1
 
-                    print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
+                print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
 
-                    if graph_result:
-                        graph_blackleg_results(image)
+                if graph_result:
+                    graph_blackleg_results(image)
 
-                print(f"Cantidad de Papas Sanas: {healthy_count}")
-                print(f"Cantidad de Papas afectadas por Costra Común: {diseased_count}")
-                print(f"Porcentaje (%) de Acierto: {(diseased_count / file_count):.2%}")
-                break
+            print(f"Cantidad de Papas Sanas: {healthy_count}")
+            print(f"Cantidad de Papas afectadas por Pie Negro: {diseased_count}")
+            print(f"Porcentaje de Imágenes Clasificadas como Enfermas: {(diseased_count / file_count):.2%}")
+            break
 
-            # Caso 3: Costra Común
-            case "3":
-                graph_result = (
-                    input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
-                )
-                graph_result = True if graph_result == "s" else False
-                PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
-                file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
-                healthy_count = 0
-                diseased_count = 0
-                print(file_count)
-                for potato in PATH.iterdir():
-                    image = Image.open(potato)
-                    _, _, _, _, disease_ratio = detect_common_scab(image)
-                    if disease_ratio >= 0.03:
-                        status = "enferma"
-                        diseased_count += 1
-                    else:
-                        status = "sana"
-                        healthy_count += 1
+        # Caso 3: Costra Común
+        elif process_folder == "3":
+            graph_result = (
+                input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
+            )
+            graph_result = True if graph_result == "s" else False
+            PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
+            file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
+            healthy_count = 0
+            diseased_count = 0
+            print(file_count)
+            for potato in PATH.iterdir():
+                image = Image.open(potato)
+                _, _, _, _, disease_ratio = detect_common_scab(image)
+                if disease_ratio >= 0.03:
+                    status = "enferma"
+                    diseased_count += 1
+                else:
+                    status = "sana"
+                    healthy_count += 1
 
-                    print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
+                print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
 
-                    if graph_result:
-                        graph_common_scab_results(image)
+                if graph_result:
+                    graph_common_scab_results(image)
 
-                print(f"Cantidad de Papas Sanas: {healthy_count}")
-                print(f"Cantidad de Papas afectadas por Costra Común: {diseased_count}")
-                print(f"Porcentaje (%) de Acierto: {(diseased_count / file_count):.2%}")
-                break
+            print(f"Cantidad de Papas Sanas: {healthy_count}")
+            print(f"Cantidad de Papas afectadas por Costra Común: {diseased_count}")
+            print(f"Porcentaje de Imágenes Clasificadas como Enfermas: {(diseased_count / file_count):.2%}")
+            break
 
-            # Caso 4: Pudrición Rosa
-            case "4":
-                graph_result = (
-                    input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
-                )
-                graph_result = True if graph_result == "s" else False
-                PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
-                file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
-                healthy_count = 0
-                diseased_count = 0
-                print(f"Cantidad de papas afectadas por Pudrición Rosa: {file_count}")
-                for potato in PATH.iterdir():
-                    image = Image.open(potato)
-                    _, _, _, _, disease_ratio = detect_pink_rot(image)
-                    if disease_ratio >= 0.05:
-                        status = "enferma"
-                        diseased_count += 1
-                    else:
-                        status = "sana"
-                        healthy_count += 1
+        # Caso 4: Pudrición Rosa
+        elif process_folder == "4":
+            graph_result = (
+                input("¿Desea gráficar los resultados? (S/N): ").lower().strip()
+            )
+            graph_result = True if graph_result == "s" else False
+            PATH = Path(f"dataset/{DATASET_FOLDERS[process_folder]}")
+            file_count = sum(1 for potato in PATH.iterdir() if potato.is_file())
+            healthy_count = 0
+            diseased_count = 0
+            print(f"Cantidad de papas afectadas por Pudrición Rosa: {file_count}")
+            for potato in PATH.iterdir():
+                image = Image.open(potato)
+                _, _, _, _, disease_ratio = detect_pink_rot(image)
+                if disease_ratio >= 0.05:
+                    status = "enferma"
+                    diseased_count += 1
+                else:
+                    status = "sana"
+                    healthy_count += 1
 
-                    print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
+                print(f"Imagen {potato.name} procesada. Diagnóstico: {status}")
 
-                    if graph_result:
-                        graph_pink_rot_results(image)
+                if graph_result:
+                    graph_pink_rot_results(image)
 
-                print(f"Cantidad de Papas Sanas: {healthy_count}")
-                print(f"Cantidad de Papas afectadas por Costra Común: {diseased_count}")
-                print(f"Porcentaje (%) de Acierto: {(diseased_count / file_count):.2%}")
-                break
-            case _:
-                print("Opción Invalida. Intente de nuevo.")
+            print(f"Cantidad de Papas Sanas: {healthy_count}")
+            print(f"Cantidad de Papas afectadas por Pudrición Rosa: {diseased_count}")
+            print(f"Porcentaje de Imágenes Clasificadas como Enfermas: {(diseased_count / file_count):.2%}")
+            break
+        else:
+            print("Opción Invalida. Intente de nuevo.")
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=1, use_filter
     # Limpieza morfológica
     disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
     disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
-    disease_mask = remove_small_objects(disease_mask, max_size=10)
+    disease_mask = remove_small_objects(disease_mask, min_size=10)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
     disease_area = np.sum(disease_mask)

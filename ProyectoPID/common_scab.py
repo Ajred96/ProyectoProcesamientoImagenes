@@ -115,7 +115,7 @@ def detect_common_scab(image, closing_radius=1, use_filter=False):
     # Se hace apertura y cierre para quitar ruido y se quitan elementos muy pequeños
     disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
     disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
-    disease_mask = remove_small_objects(disease_mask, max_size=10)
+    disease_mask = remove_small_objects(disease_mask, min_size=10)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
     disease_area = np.sum(disease_mask)
