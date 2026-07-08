@@ -28,13 +28,12 @@ Este proyecto implementa un sistema de detección de patrones visuales utilizand
 
 La solución fue desarrollada como proyecto final de la asignatura **Procesamiento Digital de Imágenes**, aplicando conceptos vistos durante el curso como:
 
-- Transformaciones algebraicas
+- Filtrado de imágenes
 - Conversión entre espacios de color
 - Histogramas
 - Umbralización automática (Otsu)
 - Segmentación
 - Operaciones morfológicas
-- Filtrado espacial
 - Convolución
 - Análisis de regiones
 - Detección de bordes
@@ -47,10 +46,10 @@ A diferencia de los enfoques modernos basados en aprendizaje automático, este p
 
 Actualmente el sistema implementa detectores independientes para:
 
-- Moho Negro (*Black Scurf*)
-- Pie Negro (*Black Leg*)
-- Costra Común (*Common Scab*)
-- Pudrición Rosa (*Pink Rot*)
+- Moho Negro (_Black Scurf_)
+- Pie Negro (_Black Leg_)
+- Costra Común (_Common Scab_)
+- Pudrición Rosa (_Pink Rot_)
 
 Cada detector utiliza una estrategia diferente dependiendo de las características visuales predominantes de la enfermedad.
 
@@ -61,21 +60,22 @@ Cada detector utiliza una estrategia diferente dependiendo de las característic
 ```
 ProyectoProcesamientoImagenes/
 │
-├── dataset/
-│   ├── Black_scurf/
-│   ├── Black_leg/
-│   ├── Common_scab/
-│   ├── Pink_rot/
-│   └── Papas_saludables/
+├── ProyectoPID/
+│   ├── dataset/
+│   │   ├── Costra_comun/
+│   │   ├── Moho_negro/
+│   │   ├── Pie_negro/
+│   │   └── Pudrición_rosa/
+│   │
+│   ├── black_scurf.py
+│   ├── blackleg.py
+│   ├── common_scab.py
+│   ├── pink_rot.py
+│   ├── functions.py
+│   └── project.py
 │
-├── black_scurf.py
-├── blackleg.py
-├── common_scab.py
-├── pink_rot.py
-├── functions.py
-├── project.py
-├── requirements.txt
-└── README.md
+├── README.md
+└── requirements.txt
 ```
 
 ---
@@ -122,22 +122,16 @@ Diagnóstico
 
 # Técnicas implementadas
 
-| Técnica | Implementada |
-|----------|:-----------:|
-| Transformaciones algebraicas | ✅ |
-| Espacios de color RGB | ✅ |
-| Espacios de color HSV | ✅ |
-| Espacios de color YUV | ✅ |
-| Histogramas | ✅ |
-| Método de Otsu | ✅ |
-| Convolución | ✅ |
-| Kernels | ✅ |
-| Filtro Gaussiano | ✅ |
-| Sobel | ✅ |
-| Laplaciano | ✅ |
-| Operaciones morfológicas | ✅ |
-| Detección de bordes (Canny) | ✅ |
-| Análisis de regiones | ✅ |
+| Técnica                  | Implementada |
+| ------------------------ | :----------: |
+| Espacios de color RGB    |      ✅      |
+| Espacios de color HSV    |      ✅      |
+| Espacios de color YUV    |      ✅      |
+| Histogramas              |      ✅      |
+| Método de Otsu           |      ✅      |
+| Convolución              |      ✅      |
+| Operaciones morfológicas |      ✅      |
+| Análisis de regiones     |      ✅      |
 
 ---
 
@@ -191,7 +185,13 @@ pip install -r requirements.txt
 
 # Ejecución
 
-Una vez instaladas las dependencias, ejecutar:
+Una vez instaladas las dependencias, entrar a la carpeta principal:
+
+```bash
+cd ProyectoPID
+```
+
+Ejecutar el archivo principal:
 
 ```bash
 python project.py
@@ -200,15 +200,15 @@ python project.py
 Al iniciar el programa se mostrará un menú similar al siguiente:
 
 ```
-Seleccione el detector:
+Elija el Dataset (N°) a Procesar:
 
-1. Moho Negro
-2. Pie Negro
-3. Costra Común
-4. Pudrición Rosa
+1. Moho_Negro
+2. Pie_Negro
+3. Costra_Común
+4. Pudrición_Rosa
 ```
 
-Seleccione la opción correspondiente y el sistema procesará automáticamente todas las imágenes del conjunto de datos asociado.
+Seleccione la opción correspondiente (1, 2, 3 o 4) y el sistema le preguntará si desea graficar los resultados, al final se procesarán automáticamente todas las imágenes del conjunto de datos asociado.
 
 ---
 
@@ -217,9 +217,8 @@ Seleccione la opción correspondiente y el sistema procesará automáticamente t
 Para cada imagen procesada se generan diferentes representaciones que permiten visualizar el comportamiento del algoritmo:
 
 - Imagen original
-- Máscara binaria
-- Imagen segmentada
-- Overlay sobre la imagen original
+- Máscara binaria de la enfermedad
+- Overlay de la máscara sobre la imagen original
 - Bounding Box de la región detectada
 - Área afectada
 - Diagnóstico final (Sana / Enferma)
@@ -232,7 +231,6 @@ Para cada imagen procesada se generan diferentes representaciones que permiten v
 - Pillow (PIL)
 - Matplotlib
 - scikit-image
-- SciPy
 
 ---
 
@@ -241,16 +239,3 @@ Para cada imagen procesada se generan diferentes representaciones que permiten v
 Este proyecto implementa **detectores especializados** y no un clasificador multiclase.
 
 Cada detector fue diseñado utilizando reglas heurísticas basadas en técnicas clásicas de Procesamiento Digital de Imágenes, permitiendo que cada decisión tomada por el algoritmo sea completamente interpretable.
-
----
-
-# Posibles mejoras
-
-Como trabajo futuro podrían incorporarse diferentes estrategias para aumentar la robustez del sistema, entre ellas:
-
-- Normalización de iluminación.
-- Aumento del conjunto de datos.
-- Extracción de características mediante descriptores más avanzados.
-- Clasificación automática mediante Machine Learning.
-- Redes Neuronales Convolucionales (CNN).
-- Segmentación semántica mediante U-Net.
