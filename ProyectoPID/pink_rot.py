@@ -104,11 +104,11 @@ def graph_pink_rot_results(image, use_filter=False, min_area=20):
         image, use_filter=use_filter
     )
 
-    # Si el área de la enfermedad con respecto a la papa es de más del 3%, considerar
+    # Si el área de la enfermedad con respecto a la papa es de más del 5%, considerar
     # como enferma
     status = "Sana"
 
-    if disease_ratio >= 0.12:
+    if disease_ratio >= 0.05:
         status = "Enferma"
 
     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
@@ -161,7 +161,7 @@ def graph_pink_rot_results(image, use_filter=False, min_area=20):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Pudricion_rosa/10.jpg"
+    SINGLE_PATH = "dataset/Pudricion_rosa/46.jpg"
     PINK_ROT_PATH = Path("dataset/Pudricion_rosa")
     single = True
     process_all = False

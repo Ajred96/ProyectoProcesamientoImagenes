@@ -108,7 +108,7 @@ def graph_blackleg_results(image, use_filter=False):
         image, use_filter=use_filter
     )
 
-    # Si el área de la enfermedad con respecto a la papa es de más del 3%, considerar
+    # Si el área de la enfermedad con respecto a la papa es de más del 12%, considerar
     # como enferma
     status = "Sana"
 

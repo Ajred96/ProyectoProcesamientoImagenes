@@ -97,7 +97,7 @@ def graph_black_scurf_results(image, use_filter=False, min_area=10):
         image, use_filter=use_filter
     )
 
-    # Si el área de la enfermedad con respecto a la papa es de más del 3%, considerar
+    # Si el área de la enfermedad con respecto a la papa es de más del 2%, considerar
     # como enferma
     status = "Sana"
 
