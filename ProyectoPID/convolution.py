@@ -6,9 +6,12 @@ from functions import (
     filter,
     calculate_histogram,
     calculate_otsu,
+    normalize_sobel_angles,
+    supress_non_maximums,
+    canny,
 )
 
-path = "./dataset/Papas_saludables/48.jpg"
+path = "./dataset/Moho_negro/1.jpg"
 image = Image.open(path)
 
 # Cargar imagen
@@ -84,36 +87,44 @@ abs_x = np.abs(result_x).astype(np.uint8)
 abs_y = np.abs(result_y).astype(np.uint8)
 abs_laplace = np.abs(result_laplace).astype(np.uint8)
 
-# Unir Sobel X y Y con la Distancia Euclidiana
-joint_sobel = np.sqrt(result_x**2 + result_y**2)
-joint_sobel = np.uint8(np.absolute(joint_sobel))
+# Unir Sobel X y Y con la Distancia Euclidiana (Magnitud)
+magnitude = np.sqrt(result_x**2 + result_y**2)
+magnitude = np.uint8(np.absolute(magnitude))
 
 # Dirección del filtro Sobel
 direction = np.arctan2(abs_y, abs_x)
-direction_degrees = np.rad2deg(direction) % 360
+direction_degrees = np.rad2deg(direction)  # Pasar a grados
+
+# Estandarizar
+normalized_direction = normalize_sobel_angles(direction_degrees)
+
+# Suprimir los no máximos
+supressed_magnitude = supress_non_maximums(magnitude, normalized_direction)
+
+# Aplicar Canny
+canny_borders = canny(supressed_magnitude, 15, 30)
 
 # Mostrar Laplace y Sobel
-fig, axs = plt.subplots(1, 5, figsize=(25, 5), num="Laplace y Sobel")
+fig, axs = plt.subplots(1, 4, figsize=(25, 5), num="Laplace y Sobel")
 
 axs[0].imshow(abs_laplace, cmap="gray")
 axs[0].set_title("Laplace")
 axs[0].axis("off")
 
-axs[1].imshow(abs_x, cmap="gray")
-axs[1].set_title("Sobel X")
+axs[1].imshow(magnitude, cmap="gray")
+axs[1].set_title("Sobel")
 axs[1].axis("off")
 
-axs[2].imshow(abs_y, cmap="gray")
-axs[2].set_title("Sobel Y")
+axs[2].imshow(normalized_direction, cmap="gray")
+axs[2].set_title("Dirección")
 axs[2].axis("off")
 
-axs[3].imshow(joint_sobel, cmap="gray")
-axs[3].set_title("Sobel XY")
+axs[3].imshow(canny_borders, cmap="gray")
+axs[3].set_title("Canny")
 axs[3].axis("off")
 
-axs[4].imshow(direction_degrees, cmap="gray")
-axs[4].set_title("Dirección")
-axs[4].axis("off")
+# np.set_printoptions(threshold=np.inf)
+# print(supressed_magnitude)
 
 plt.tight_layout()
 plt.show()

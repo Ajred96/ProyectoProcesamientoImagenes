@@ -52,9 +52,12 @@ def calculate_histogram(channel: np.ndarray):
     return histogram, bin_edges, bin_centers
 
 
-def calculate_otsu(
-    histogram: np.ndarray, bin_centers: np.ndarray, normalize: bool = True
-):
+def calculate_otsu(channel: np.ndarray, normalize: bool = True):
+    """
+    Función que calcula el umbral otsu a partir de un canal o imagen en grises
+    """
+
+    histogram, _, bin_centers = calculate_histogram(channel)
 
     if normalize == True:
         histogram = histogram / histogram.sum()
@@ -118,6 +121,19 @@ def binary_erosion(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return output
 
 
+def binary_opening(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    """
+    Ejecuta una apertura morfológica binario. Una apertura es una erosión seguida de una dilatación.
+    """
+    # 1. Erosion: Obtiene el valor mínimo en la vencidad
+    eroded = binary_erosion(image, kernel)
+
+    # 2. Dilatación: Obtiene el valor máximo en la vecindad
+    opened = binary_dilation(eroded, kernel)
+
+    return opened.astype(np.bool)
+
+
 def binary_closing(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
     Ejecuta un cierre morfológico binario. Un cierre es una dilatación seguida de una erosión.
@@ -125,7 +141,7 @@ def binary_closing(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     # 1. Dilatación: Obtiene el valor máximo en la vecindad
     dilated = binary_dilation(image, kernel)
 
-    # 2. Erosion: Obtiene el valor mínimo dene la vencidad
+    # 2. Erosion: Obtiene el valor mínimo en la vencidad
     closed = binary_erosion(dilated, kernel)
 
     return closed.astype(np.bool)
@@ -153,5 +169,109 @@ def filter(image, kernel):
         for j in range(output_width):
             region = image[i : i + kernel_height, j : j + kernel_width]
             output[i, j] = np.sum(np.multiply(region, kernel))
+
+    return output
+
+
+def normalize_sobel_angles(direction):
+    """
+    Normaliza los ángulos de la matríz dirección de sobel de a una serie de rangos
+    """
+    direction[(direction >= -22.5) & (direction <= 22.5)] = 0
+
+    direction[
+        ((direction >= 22.5) & (direction <= 67.5))
+        | ((direction >= -157.5) & (direction <= -112.5))
+    ] = 45
+
+    direction[
+        ((direction >= 67.5) & (direction <= 112.5))
+        | ((direction >= -112.5) & (direction <= -67.5))
+    ] = 90
+
+    direction[
+        ((direction >= 112.5) & (direction <= 157.5))
+        | ((direction >= -67.5) & (direction <= -22.5))
+    ] = 135
+
+    return direction
+
+
+def supress_non_maximums(magnitude: np.ndarray, direction: np.ndarray):
+    """
+    Suprime a cero (0) las magnitudes que no sean mayores a sus magnitudes vecinas acordes a la dirección
+    """
+    height, width = magnitude.shape
+
+    output = magnitude.copy()
+
+    for i in range(1, height - 1):
+        for j in range(1, width - 1):
+            if direction[i][j] == 0:
+                if (magnitude[i][j] < magnitude[i][j - 1]) or (
+                    magnitude[i][j] < magnitude[i][j + 1]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 45:
+                if (magnitude[i][j] < magnitude[i - 1][j + 1]) or (
+                    magnitude[i][j] < magnitude[i + 1][j - 1]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 90:
+                if (magnitude[i][j] < magnitude[i - 1][j]) or (
+                    magnitude[i][j] < magnitude[i + 1][j]
+                ):
+                    output[i][j] = 0
+
+            elif direction[i][j] == 135:
+                if (magnitude[i][j] < magnitude[i - 1][j - 1]) or (
+                    magnitude[i][j] < magnitude[i + 1][j + 1]
+                ):
+                    output[i][j] = 0
+
+    return output
+
+
+def canny(supressed_magnitude, low_threshold=5, high_threshold=10):
+    """
+    Aplica el algoritmo de Canny a partir de una matriz de magnitudes suprimida
+    """
+    height, width = supressed_magnitude.shape
+
+    output = np.zeros((height, width), dtype=np.uint8)
+
+    # Valores de Canny
+    strong = 255
+    weak = 75
+
+    # Clasificación inicial
+    for i in range(height):
+        for j in range(width):
+            value = supressed_magnitude[i][j]
+
+            if value < low_threshold:
+                output[i][j] = 0
+
+            elif value >= high_threshold:
+                output[i][j] = strong
+
+            else:
+                output[i][j] = weak
+
+    # Seguimiento por histéresis
+    for i in range(1, height - 1):
+        for j in range(1, width - 1):
+
+            if output[i][j] == weak:
+
+                # Revisar vecindad 8-conectada
+                neighborhood = output[i - 1 : i + 2, j - 1 : j + 2]
+
+                if np.any(neighborhood == strong):
+                    output[i][j] = strong
+                else:
+                    output[i][j] = 0
 
     return output
