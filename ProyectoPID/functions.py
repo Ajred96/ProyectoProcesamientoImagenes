@@ -52,9 +52,12 @@ def calculate_histogram(channel: np.ndarray):
     return histogram, bin_edges, bin_centers
 
 
-def calculate_otsu(
-    histogram: np.ndarray, bin_centers: np.ndarray, normalize: bool = True
-):
+def calculate_otsu(channel: np.ndarray, normalize: bool = True):
+    """
+    Función que calcula el umbral otsu a partir de un canal o imagen en grises
+    """
+
+    histogram, _, bin_centers = calculate_histogram(channel)
 
     if normalize == True:
         histogram = histogram / histogram.sum()
@@ -118,6 +121,19 @@ def binary_erosion(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return output
 
 
+def binary_opening(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    """
+    Ejecuta una apertura morfológica binario. Una apertura es una erosión seguida de una dilatación.
+    """
+    # 1. Erosion: Obtiene el valor mínimo en la vencidad
+    eroded = binary_erosion(image, kernel)
+
+    # 2. Dilatación: Obtiene el valor máximo en la vecindad
+    opened = binary_dilation(eroded, kernel)
+
+    return opened.astype(np.bool)
+
+
 def binary_closing(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
     Ejecuta un cierre morfológico binario. Un cierre es una dilatación seguida de una erosión.
@@ -125,7 +141,7 @@ def binary_closing(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     # 1. Dilatación: Obtiene el valor máximo en la vecindad
     dilated = binary_dilation(image, kernel)
 
-    # 2. Erosion: Obtiene el valor mínimo dene la vencidad
+    # 2. Erosion: Obtiene el valor mínimo en la vencidad
     closed = binary_erosion(dilated, kernel)
 
     return closed.astype(np.bool)
