@@ -108,6 +108,13 @@ def graph_blackleg_results(image, use_filter=False):
         image, use_filter=use_filter
     )
 
+    # Si el área de la enfermedad con respecto a la papa es de más del 3%, considerar
+    # como enferma
+    status = "Sana"
+
+    if disease_ratio >= 0.12:
+        status = "Enferma"
+
     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
 
     axs[0].imshow(original_image)
@@ -115,12 +122,12 @@ def graph_blackleg_results(image, use_filter=False):
     axs[0].axis("off")
 
     axs[1].imshow(disease_mask, cmap="gray")
-    axs[1].set_title("Detected Mask")
+    axs[1].set_title(f"Máscara de la Enfermedad\n(A: {disease_ratio:.2%})")
     axs[1].axis("off")
 
     axs[2].imshow(original_image)
     axs[2].imshow(overlay, alpha=0.3)
-    axs[2].set_title("Detected Blackleg")
+    axs[2].set_title(f"Estado: {status}")
     axs[2].axis("off")
 
     axs[3].imshow(original_image)
