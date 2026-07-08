@@ -6,12 +6,12 @@ from PIL import Image
 from functions import (
     Kernel,
     filter,
-    calculate_histogram,
     calculate_otsu,
     binary_opening,
     binary_closing,
     footprint_disk,
 )
+from skimage.morphology import remove_small_objects
 from skimage.measure import label, regionprops
 
 
@@ -59,8 +59,11 @@ def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=1, use_filter
 
     # De la máscara de la papa nos quedamos solo con las partes oscuras
     detected_mask = mask_dark & potato_mask
+
+    # Limpieza morfológica
     disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
     disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
+    disease_mask = remove_small_objects(disease_mask, max_size=10)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
     disease_area = np.sum(disease_mask)
@@ -84,7 +87,7 @@ def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=1, use_filter
     )
 
 
-def graph_black_scurf_results(image, use_filter=False, min_area=20):
+def graph_black_scurf_results(image, use_filter=False, min_area=10):
     """
     Función que recibe una imagen de una papa y grafica los cálculos de la enfermedad
     """
@@ -98,7 +101,7 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
     # como enferma
     status = "Sana"
 
-    if disease_ratio >= 0.03:
+    if disease_ratio >= 0.02:
         status = "Enferma"
 
     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
@@ -124,7 +127,7 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
 
         valid_regions = [region for region in regions if region.area >= min_area]
 
-    if valid_regions:
+    if regions and valid_regions:
 
         min_row = min(region.bbox[0] for region in valid_regions)
         min_col = min(region.bbox[1] for region in valid_regions)
@@ -151,9 +154,9 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Moho_negro/10.jpg"
+    SINGLE_PATH = "dataset/Moho_negro/1.jpg"
     BLACK_SCURF_PATH = Path("dataset/Moho_negro")
-    single = False
+    single = True
     process_all = False
     use_filter = False
 

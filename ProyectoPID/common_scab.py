@@ -179,7 +179,7 @@ def graph_common_scab_results(image, use_filter=False, min_area=20):
 
         valid_regions = [region for region in regions if region.area >= min_area]
 
-    if valid_regions:
+    if regions and valid_regions:
 
         min_row = min(region.bbox[0] for region in valid_regions)
         min_col = min(region.bbox[1] for region in valid_regions)
