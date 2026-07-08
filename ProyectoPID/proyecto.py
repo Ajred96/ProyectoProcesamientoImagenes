@@ -15,7 +15,6 @@ CARPETAS_CLASES = [
     "Moho_negro",
     "Pie_negro",
     "Pudricion_rosa",
-    "Pudricion_seca"
 ]
 
 MAPA_ETIQUETAS = {
@@ -24,7 +23,6 @@ MAPA_ETIQUETAS = {
     "Moho_negro": 2,
     "Pie_negro": 3,
     "Pudricion_rosa": 4,
-    "Pudricion_seca": 5
 }
 
 MAPA_NOMBRES = {
@@ -33,7 +31,6 @@ MAPA_NOMBRES = {
     2: "Moho_negro",
     3: "Pie_negro",
     4: "Pudricion_rosa",
-    5: "Pudricion_seca"
 }
 
 
@@ -438,4 +435,4 @@ def EvaluarBinarioInteractivo(cantidadPorClase=10):
 #     ProbarDeteccionLesion(ruta6)
 if __name__ == "__main__":
     ContarImagenesPorClase()
-    EvaluarBinarioInteractivo(cantidadPorClase=5)
+    EvaluarBinarioInteractivo(cantidadPorClase=1)
