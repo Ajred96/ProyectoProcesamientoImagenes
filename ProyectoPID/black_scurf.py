@@ -8,13 +8,14 @@ from functions import (
     filter,
     calculate_histogram,
     calculate_otsu,
+    binary_opening,
     binary_closing,
     footprint_disk,
 )
 from skimage.measure import label, regionprops
 
 
-def detect_black_scurf(image, chroma_threshold=0.3, closing_radius=3, use_filter=False):
+def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=1, use_filter=False):
     """
     Función que recibe una imagen de una papa y determina si está enferma de
     Moho Negro o no
@@ -41,48 +42,42 @@ def detect_black_scurf(image, chroma_threshold=0.3, closing_radius=3, use_filter
     RGBTOYUV = [0.298936021293775, 0.587043074451121, 0.114020904255103]
     yuv = np.matmul(norm_img_array, RGBTOYUV)
 
-    hist, bin_edges, bin_centers = calculate_histogram(yuv)
-
     # Calcular el Chroma (diferencia entre el máximo y el mínimo)
     max_rgb = norm_img_array.max(axis=2)
     min_rgb = norm_img_array.min(axis=2)
     chroma = max_rgb - min_rgb
 
     # Calcular las máscaras
-    otsu = calculate_otsu(hist, bin_centers, normalize=False)
+    otsu = calculate_otsu(yuv, normalize=False)
     mask_dark = yuv < otsu  # Máscara relativa al umbral
-
-    # Calcular el umbral del Chroma respecto a la máscara
-    chroma_hist, chroma_bin_edges, chroma_bin_centers = calculate_histogram(
-        chroma[mask_dark]
-    )
 
     # Forzar saturación baja para detectar mejor las zonas oscuras
     mask_dark &= chroma < chroma_threshold
 
     # Remover el fondo blanco
-    mask_potato = yuv < 0.95
+    potato_mask = yuv < 0.95
 
     # De la máscara de la papa nos quedamos solo con las partes oscuras
-    detected_mask = mask_dark & mask_potato
-    clean_mask = binary_closing(detected_mask, footprint_disk(closing_radius))
+    detected_mask = mask_dark & potato_mask
+    disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
+    disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
-    disease_area = np.sum(clean_mask)
-    potato_area = np.sum(mask_potato)
+    disease_area = np.sum(disease_mask)
+    potato_area = np.sum(potato_mask)
     disease_ratio = disease_area / potato_area
 
     # Etiquetar las regiones conexas para dibujar las cajas delimitadoras
-    labels = label(clean_mask)
+    labels = label(disease_mask)
     regions = regionprops(labels)
 
     # Solapar la máscara de la enfermedad sobre la imagen original
     overlay = norm_img_array.copy()
-    overlay[clean_mask] = [1, 0, 0]
+    overlay[disease_mask] = [1, 0, 0]
 
     return (
         norm_img_array,
-        clean_mask,
+        disease_mask,
         overlay,
         regions,
         disease_ratio,
@@ -95,7 +90,7 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
     """
 
     # Obtener los resultados de la detección
-    original_image, clean_mask, overlay, regions, disease_ratio = detect_black_scurf(
+    original_image, disease_mask, overlay, regions, disease_ratio = detect_black_scurf(
         image, use_filter=use_filter
     )
 
@@ -112,7 +107,7 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
     axs[0].set_title("Original")
     axs[0].axis("off")
 
-    axs[1].imshow(clean_mask, cmap="gray")
+    axs[1].imshow(disease_mask, cmap="gray")
     axs[1].set_title(f"Máscara de la Enfermedad\n(A: {disease_ratio:.2%})")
     axs[1].axis("off")
 
@@ -156,9 +151,9 @@ def graph_black_scurf_results(image, use_filter=False, min_area=20):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Moho_negro/33.jpg"
+    SINGLE_PATH = "dataset/Moho_negro/10.jpg"
     BLACK_SCURF_PATH = Path("dataset/Moho_negro")
-    single = True
+    single = False
     process_all = False
     use_filter = False
 
