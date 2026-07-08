@@ -8,4 +8,4 @@
 
 ## Autores
 - Marcelo Alejandro García Millán - 201941427
-- Anderson Johan Albán Angulo
+- Anderson Johan Albán Angulo - 2310006
