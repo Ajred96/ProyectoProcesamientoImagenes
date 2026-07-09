@@ -1,6 +1,6 @@
 import numpy as np
 from pathlib import Path
-from random import choice
+from random import choice, sample
 import matplotlib.pyplot as plt
 from PIL import Image
 from functions import (
@@ -158,29 +158,55 @@ def graph_blackleg_results(image, use_filter=False):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Pie_negro/1.jpg"
     BLACKLEG_PATH = Path("dataset/Pie_negro")
-    single = False
-    process_all = False
-    use_filter = False
 
-    if single:
-        # Procesa una única imagen determinada por SINGLE_PATH
-        image = Image.open(SINGLE_PATH)
-        graph_blackleg_results(image, use_filter=use_filter)
-    elif process_all:
-        # Procesa todas las papas del dataset
-        for potato in BLACKLEG_PATH.iterdir():
-            image = Image.open(potato)
-            graph_blackleg_results(image, use_filter=use_filter)
-    else:
-        # Procesa un número (QUANTITY) de papas, elegidas al azar
-        QUANTITY = 5
-        BLACKLEG_IMAGES = []
+    use_filter = (
+        input("¿Desea filtrar las imágenes? (S/N): ").lower().strip()
+    )
+    use_fiter = True if use_filter == "s" else False
 
-        for potato in BLACKLEG_PATH.iterdir():
-            BLACKLEG_IMAGES.append(potato)
+    while True:
+        options = (
+            input(
+                "¿Qué desea hacer?:\n"
+                "1: Procesar una imagen al azar\n"
+                "2: Procesar todas las imágenes\n"
+                "3: Procesar 5 imágenes al azar -> "
+            )
+            .lower()
+            .strip()
+        )
 
-        for i in range(QUANTITY):
-            image = Image.open(choice(BLACKLEG_IMAGES))
-            graph_blackleg_results(image, use_filter=use_filter)
+        match options:
+            case "1":
+                # Procesa una única imagen
+                BLACKLEG_IMAGES = []
+
+                for potato in BLACKLEG_PATH.iterdir():
+                    BLACKLEG_IMAGES.append(potato)
+
+                image = Image.open(choice(BLACKLEG_IMAGES))
+                graph_blackleg_results(image, use_filter=use_filter)
+                break
+            case "2":
+                # Procesa todas las papas del dataset
+                for potato in BLACKLEG_PATH.iterdir():
+                    image = Image.open(potato)
+                    graph_blackleg_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+                
+                break
+            case "3":
+                BLACKLEG_IMAGES = []
+
+                for potato in BLACKLEG_PATH.iterdir():
+                    BLACKLEG_IMAGES.append(potato)
+
+                for potato in sample(BLACKLEG_IMAGES, k=5):
+                    image = Image.open(potato)
+                    graph_blackleg_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+
+                break
+            case _:
+                print("Opción Invalida. Intente de nuevo.")

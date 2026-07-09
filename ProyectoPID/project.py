@@ -27,7 +27,7 @@ def dataset_processing():
                 "1: Moho_negro\n"
                 "2: Pie_negro\n"
                 "3: Costra_comun\n"
-                "4: Pudrición rosa: "
+                "4: Pudrición_rosa ->"
             )
             .lower()
             .strip()

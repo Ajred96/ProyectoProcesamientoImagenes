@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from random import choice
+from random import choice, sample
 from PIL import Image
 from functions import (
     Kernel,
@@ -63,7 +63,7 @@ def detect_black_scurf(image, chroma_threshold=0.2, closing_radius=1, use_filter
     # Limpieza morfológica
     disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
     disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
-    disease_mask = remove_small_objects(disease_mask, min_size=10)
+    disease_mask = remove_small_objects(disease_mask, max_size=10)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
     disease_area = np.sum(disease_mask)
@@ -154,29 +154,55 @@ def graph_black_scurf_results(image, use_filter=False, min_area=10):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Moho_negro/1.jpg"
     BLACK_SCURF_PATH = Path("dataset/Moho_negro")
-    single = True
-    process_all = False
-    use_filter = False
 
-    if single:
-        # Procesa una única imagen determinada por SINGLE_PATH
-        image = Image.open(SINGLE_PATH)
-        graph_black_scurf_results(image, use_filter=use_filter)
-    elif process_all:
-        # Procesa todas las papas del dataset
-        for potato in BLACK_SCURF_PATH.iterdir():
-            image = Image.open(potato)
-            graph_black_scurf_results(image, use_filter=use_filter)
-    else:
-        # Procesa un número (QUANTITY) de papas, elegidas al azar
-        QUANTITY = 3
-        BLACK_SCURF_IMAGES = []
+    use_filter = (
+        input("¿Desea filtrar las imágenes? (S/N): ").lower().strip()
+    )
+    use_fiter = True if use_filter == "s" else False
 
-        for potato in BLACK_SCURF_PATH.iterdir():
-            BLACK_SCURF_IMAGES.append(potato)
+    while True:
+        options = (
+            input(
+                "¿Qué desea hacer?:\n"
+                "1: Procesar una imagen al azar\n"
+                "2: Procesar todas las imágenes\n"
+                "3: Procesar 5 imágenes al azar -> "
+            )
+            .lower()
+            .strip()
+        )
 
-        for i in range(QUANTITY):
-            image = Image.open(choice(BLACK_SCURF_IMAGES))
-            graph_black_scurf_results(image, use_filter=use_filter)
+        match options:
+            case "1":
+                # Procesa una única imagen
+                BLACK_SCURF_IMAGES = []
+
+                for potato in BLACK_SCURF_PATH.iterdir():
+                    BLACK_SCURF_IMAGES.append(potato)
+
+                image = Image.open(choice(BLACK_SCURF_IMAGES))
+                graph_black_scurf_results(image, use_filter=use_filter)
+                break
+            case "2":
+                # Procesa todas las papas del dataset
+                for potato in BLACK_SCURF_PATH.iterdir():
+                    image = Image.open(potato)
+                    graph_black_scurf_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+                
+                break
+            case "3":
+                BLACK_SCURF_IMAGES = []
+
+                for potato in BLACK_SCURF_PATH.iterdir():
+                    BLACK_SCURF_IMAGES.append(potato)
+
+                for potato in sample(BLACK_SCURF_IMAGES, k=5):
+                    image = Image.open(potato)
+                    graph_black_scurf_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+
+                break
+            case _:
+                print("Opción Invalida. Intente de nuevo.")

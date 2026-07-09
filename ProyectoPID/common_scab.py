@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from random import choice
+from random import choice, sample
 from PIL import Image
 from functions import (
     Kernel,
@@ -115,7 +115,7 @@ def detect_common_scab(image, closing_radius=1, use_filter=False):
     # Se hace apertura y cierre para quitar ruido y se quitan elementos muy pequeños
     disease_mask = binary_opening(detected_mask, footprint_disk(closing_radius))
     disease_mask = binary_closing(disease_mask, footprint_disk(closing_radius))
-    disease_mask = remove_small_objects(disease_mask, min_size=10)
+    disease_mask = remove_small_objects(disease_mask, max_size=10)
 
     # Obtener el porcentaje de enfermedad respecto al total del área de la papa
     disease_area = np.sum(disease_mask)
@@ -206,29 +206,55 @@ def graph_common_scab_results(image, use_filter=False, min_area=20):
 
 
 if __name__ == "__main__":
-    SINGLE_PATH = "dataset/Costra_comun/13.jpg"
     COMMON_SCAB_PATH = Path("dataset/Costra_comun")
-    single = False
-    process_all = False
-    use_filter = False
 
-    if single:
-        # Procesa una única imagen determinada por SINGLE_PATH
-        image = Image.open(SINGLE_PATH)
-        graph_common_scab_results(image, use_filter=use_filter)
-    elif process_all:
-        # Procesa todas las papas del dataset
-        for potato in COMMON_SCAB_PATH.iterdir():
-            image = Image.open(potato)
-            graph_common_scab_results(image, use_filter=use_filter)
-    else:
-        # Procesa un número (QUANTITY) de papas, elegidas al azar
-        QUANTITY = 5
-        COMMON_SCAB_IMAGES = []
+    use_filter = (
+        input("¿Desea filtrar las imágenes? (S/N): ").lower().strip()
+    )
+    use_fiter = True if use_filter == "s" else False
 
-        for potato in COMMON_SCAB_PATH.iterdir():
-            COMMON_SCAB_IMAGES.append(potato)
+    while True:
+        options = (
+            input(
+                "¿Qué desea hacer?:\n"
+                "1: Procesar una imagen al azar\n"
+                "2: Procesar todas las imágenes\n"
+                "3: Procesar 5 imágenes al azar -> "
+            )
+            .lower()
+            .strip()
+        )
 
-        for i in range(QUANTITY):
-            image = Image.open(choice(COMMON_SCAB_IMAGES))
-            graph_common_scab_results(image, use_filter=use_filter)
+        match options:
+            case "1":
+                # Procesa una única imagen
+                COMMON_SCAB_IMAGES = []
+
+                for potato in COMMON_SCAB_PATH.iterdir():
+                    COMMON_SCAB_IMAGES.append(potato)
+
+                image = Image.open(choice(COMMON_SCAB_IMAGES))
+                graph_common_scab_results(image, use_filter=use_filter)
+                break
+            case "2":
+                # Procesa todas las papas del dataset
+                for potato in COMMON_SCAB_PATH.iterdir():
+                    image = Image.open(potato)
+                    graph_common_scab_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+                
+                break
+            case "3":
+                COMMON_SCAB_IMAGES = []
+
+                for potato in COMMON_SCAB_PATH.iterdir():
+                    COMMON_SCAB_IMAGES.append(potato)
+
+                for potato in sample(COMMON_SCAB_IMAGES, k=5):
+                    image = Image.open(potato)
+                    graph_common_scab_results(image, use_filter=use_filter)
+                    print(f"Imagen {potato} procesada.")
+
+                break
+            case _:
+                print("Opción Invalida. Intente de nuevo.")
